@@ -517,24 +517,22 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
                         # Check: Filename exists in books_saved.txt
                         if filename not in success_downloads:
 
-                            # Check: Base URL not in failed downloads (failed downloads are specifically < 1024b files)
-                            if enumerated_result[0] not in failed_downloads:
-                                dyn_download_args = DownloadArgs(verbose=_verbose,
-                                                                 url=enumerated_result,
-                                                                 filename=filename,
-                                                                 filepath=filepath,
-                                                                 chunk_size=8192,
-                                                                 clear_n_chars=50,
-                                                                 min_file_size=1024,
-                                                                 log=True,
-                                                                 success_downloads=_success_downloads,
-                                                                 failed_downloads=_failed_downloads,
-                                                                 ds_bytes=_ds_bytes,
-                                                                 allow_external=_allow_external)
+                            # create a dataclass for the downloader then run the downloader handler
+                            dyn_download_args = DownloadArgs(verbose=_verbose,
+                                                             url=enumerated_result,
+                                                             filename=filename,
+                                                             filepath=filepath,
+                                                             chunk_size=8192,
+                                                             clear_n_chars=50,
+                                                             min_file_size=1024,
+                                                             log=True,
+                                                             success_downloads=_success_downloads,
+                                                             failed_downloads=_failed_downloads,
+                                                             ds_bytes=_ds_bytes,
+                                                             allow_external=_allow_external)
 
-                                await run_downlaoder(dyn_download_args)
-                            else:
-                                print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File exists in failed downloads, may require an external link to download.', c='W'))
+                            await run_downlaoder(dyn_download_args)
+
                         else:
                             print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File exists in records.', c='W'))
                     else:
