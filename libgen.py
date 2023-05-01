@@ -21,6 +21,7 @@ from dataclasses import dataclass
 import libgen_help
 
 # Platform check (Be compatible with Termux on Android, skip Pyqt5 import)
+player_default = object
 if os.name in ('nt', 'dos'):
     try:
         from PyQt5.QtCore import QUrl
