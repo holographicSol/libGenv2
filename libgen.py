@@ -167,11 +167,15 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
     Make use of async read/write and aiohhttp while also not needing to make this function non-blocking -
     (This function runs one instance at a time to prevent being kicked). """
 
+    # Index 3 is typically cloudflare.
+    # (Change to use a different link, see parse_soup_phase_two() for increasing number of links in the link list)
+    _link_index = 3
+
     _chunk_size = dyn_download_args.chunk_size
-    print(f'{get_dt()} ' + color('[URL] ', c='LC') + color(str(dyn_download_args.url[3]), c='W'))
+    print(f'{get_dt()} ' + color('[URL] ', c='LC') + color(str(dyn_download_args.url[_link_index]), c='W'))
 
     async with aiohttp.ClientSession(headers=user_agent(), **client_args_download) as session:
-        async with session.get(dyn_download_args.url[3]) as resp:
+        async with session.get(dyn_download_args.url[_link_index]) as resp:
             if dyn_download_args.verbose is True:
                 print(f'{get_dt()} ' + color('[Response] ', c='Y') + color(str(resp.status), c='LC'))
             if resp.status == 200:
@@ -270,27 +274,6 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
         else:
             print(f'{get_dt()} ' + color(f'[Download Failed] ', c='R') + str(''))
 
-            # # add books base url to failed only if file < 1024. (external link filter)
-            # if dyn_download_args.log is True:
-            #     if dyn_download_args.url[0] not in failed_downloads:
-            #         if dyn_download_args.verbose is True:
-            #             print(f'{get_dt()} ' + color('[Log] ', c='Y') + color(f'Logging {dyn_download_args.url[0]} as failed (possibly external link)', c='LC'))
-            #         failed_downloads.append(dyn_download_args.url[0])
-            #         async with aiofiles.open('./books_failed.txt', mode='a+', encoding='utf8') as handle:
-            #             await handle.write(str(dyn_download_args.url[0]) + '\n')
-            #         await handle.close()
-            #
-            #     # read file and check if new entry exists
-            #     if dyn_download_args.verbose is True:
-            #         async with aiofiles.open('./books_failed.txt', mode='r', encoding='utf8') as handle:
-            #             text = await handle.read()
-            #         await handle.close()
-            #         lines = text.split('\n')
-            #         if dyn_download_args.url[0] in lines:
-            #             print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Successfully appended {dyn_download_args.url[0]} to books_failed.txt', c='LC'))
-            #         else:
-            #             print(f'{get_dt()} ' + color('[File] ', c='R') + color(f'Failed to append {dyn_download_args.url[0]} to books_failed.txt', c='LC'))
-
             # check: clean up the temporary file if it exists.
             if os.path.exists(dyn_download_args.filename+'.tmp'):
                 os.remove(dyn_download_args.filename+'.tmp')
@@ -334,7 +317,8 @@ def parse_soup_phase_two(_soup: bs4.BeautifulSoup, _book_urls: list) -> list:
 
     for link in _soup.find_all('a'):
         href = link.get('href')
-        if str(href).endswith('.pdf'):
+        # Check: Is .pdf, limit number of download links appended to the list. (Increase limit to see more links).
+        if str(href).endswith('.pdf') and len(_book_urls) < 4:
             _book_urls.append(href)
 
     return _book_urls
