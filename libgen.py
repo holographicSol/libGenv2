@@ -413,7 +413,7 @@ async def run_downlaoder(dyn_download_args):
 
 async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_path='./library/',
                _success_downloads=None, _failed_downloads=None, _ds_bytes=False, _verbose=False,
-               _allow_external=False):
+               _allow_external=False, _results_per_page=25):
 
     # Phase One: Setup async scaper to get book URLs (one page at a time to prevent getting kicked from the server)
     if _success_downloads is None:
@@ -422,7 +422,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
 
         # create URL to scrape using query and exact match bool
         url = str('https://libgen.is/search.php?req=' + str(_search_q).replace(' ', '+'))
-        url = url + '&phrase=1&view=simple&column=def&sort=def&sortmode=ASC&page='
+        url = url + f'&open=0&res={str(_results_per_page)}&view=simple&phrase=1&column=title&page='
         url = url+str(i_current_page)
 
         print(f'{get_dt()} ' + color('[Search] ', c='LC') + color(search_q, c='W'))
@@ -563,6 +563,14 @@ else:
         idx = stdin.index('-p') + 1
         i_page = int(stdin[idx])
 
+    results_per_page = '50'
+    allowed_results_per_page = ['25', '50', '100']
+    if '--results-max' in stdin:
+        idx = stdin.index('--results-max') + 1
+        input_results_per_page = stdin[idx]
+        if input_results_per_page in allowed_results_per_page:
+            results_per_page = input_results_per_page
+
     """ Query """
     search_q = ''
     idx = stdin.index('-k')+1
@@ -613,4 +621,4 @@ else:
     loop.run_until_complete(main(_i_page=i_page, _max_page=max_page, _exact_match=exact_match, _search_q=search_q,
                                  _lib_path=lib_path, _success_downloads=success_downloads,
                                  _failed_downloads=failed_downloads, _ds_bytes=ds_bytes, _verbose=verbose,
-                                 _allow_external=allow_external))
+                                 _allow_external=allow_external, _results_per_page=results_per_page))
