@@ -565,8 +565,8 @@ else:
 
     results_per_page = '50'
     allowed_results_per_page = ['25', '50', '100']
-    if '--results-max' in stdin:
-        idx = stdin.index('--results-max') + 1
+    if '-rmax' in stdin:
+        idx = stdin.index('-rmax') + 1
         input_results_per_page = stdin[idx]
         if input_results_per_page in allowed_results_per_page:
             results_per_page = input_results_per_page
@@ -582,7 +582,7 @@ else:
     search_q = search_q[1:]
 
     """ Max Pages """
-    max_page = 88
+    max_page = 100
     if '-max' in stdin:
         idx = stdin.index('-max') + 1
         max_page = int(stdin[idx])
