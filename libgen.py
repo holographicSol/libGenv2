@@ -485,56 +485,56 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
 
         # Synchronously (for now) attempt to download each book on the current page.
         for enumerated_result in enumerated_results:
-            print('_' * 28)
-            print('')
-            print(f'{get_dt()} {color("[Progress] ", c="LC")} {color(str(f"{i_progress+1}/{len(enumerated_results)} ({current_page}/{_max_page})"), c="W")}')
-            print(f'{get_dt()} ' + color('[Category] ', c='LC') + color(str(_search_q), c='W'))
-            if _verbose is True:
-                print(f'{get_dt()} ' + color('[Handling Enumerated Result] ', c='Y') + color(str(enumerated_result), c='LC'))
 
             if len(enumerated_result) >= 3:
+                print('_' * 28)
+                print('')
+                print(f'{get_dt()} {color("[Progress] ", c="LC")} {color(str(f"{i_progress+1}/{len(enumerated_results)} ({current_page}/{_max_page})"), c="W")}')
+                print(f'{get_dt()} ' + color('[Category] ', c='LC') + color(str(_search_q), c='W'))
+                if _verbose is True:
+                    print(f'{get_dt()} ' + color('[Handling Enumerated Result] ', c='Y') + color(str(enumerated_result), c='LC'))
 
-                # Check: Library category directory exists
-                if not os.path.exists(lib_path + '/' + _search_q):
-                    os.makedirs(lib_path + '/' + _search_q, exist_ok=True)
+                    # Check: Library category directory exists
+                    if not os.path.exists(lib_path + '/' + _search_q):
+                        os.makedirs(lib_path + '/' + _search_q, exist_ok=True)
 
-                # Make filename from URL
-                filename = make_file_name(_filename=enumerated_result[1])
-                filepath = lib_path + '/' + _search_q + '/' + filename
+                    # Make filename from URL
+                    filename = make_file_name(_filename=enumerated_result[1])
+                    filepath = lib_path + '/' + _search_q + '/' + filename
 
-                # Output: Filename and download link
-                print(f'{get_dt()} ' + color('[Book] ', c='LC') + color(str(filename), c='W'))
+                    # Output: Filename and download link
+                    print(f'{get_dt()} ' + color('[Book] ', c='LC') + color(str(filename), c='W'))
 
-                # Check: Filename exists in filesystem save location
-                if not os.path.exists(filepath):
+                    # Check: Filename exists in filesystem save location
+                    if not os.path.exists(filepath):
 
-                    # Check: Filename exists in books_saved.txt
-                    if filename not in success_downloads:
+                        # Check: Filename exists in books_saved.txt
+                        if filename not in success_downloads:
 
-                        # Check: Base URL not in failed downloads (failed downloads are specifically < 1024b files)
-                        if enumerated_result[0] not in failed_downloads:
-                            dyn_download_args = DownloadArgs(verbose=_verbose,
-                                                             url=enumerated_result,
-                                                             filename=filename,
-                                                             filepath=filepath,
-                                                             chunk_size=8192,
-                                                             clear_n_chars=50,
-                                                             min_file_size=1024,
-                                                             log=True,
-                                                             success_downloads=_success_downloads,
-                                                             failed_downloads=_failed_downloads,
-                                                             ds_bytes=_ds_bytes,
-                                                             allow_external=_allow_external)
+                            # Check: Base URL not in failed downloads (failed downloads are specifically < 1024b files)
+                            if enumerated_result[0] not in failed_downloads:
+                                dyn_download_args = DownloadArgs(verbose=_verbose,
+                                                                 url=enumerated_result,
+                                                                 filename=filename,
+                                                                 filepath=filepath,
+                                                                 chunk_size=8192,
+                                                                 clear_n_chars=50,
+                                                                 min_file_size=1024,
+                                                                 log=True,
+                                                                 success_downloads=_success_downloads,
+                                                                 failed_downloads=_failed_downloads,
+                                                                 ds_bytes=_ds_bytes,
+                                                                 allow_external=_allow_external)
 
-                            await run_downlaoder(dyn_download_args)
+                                await run_downlaoder(dyn_download_args)
+                            else:
+                                print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File exists in failed downloads, may require an external link to download.', c='W'))
                         else:
-                            print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File exists in failed downloads, may require an external link to download.', c='W'))
+                            print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File exists in records.', c='W'))
                     else:
-                        print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File exists in records.', c='W'))
-                else:
-                    print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File already exists in filesystem.', c='W'))
+                        print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File already exists in filesystem.', c='W'))
 
-            i_progress += 1
+                i_progress += 1
 
         print('')
         print('')
