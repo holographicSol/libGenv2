@@ -418,15 +418,15 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
     # Phase One: Setup async scaper to get book URLs (one page at a time to prevent getting kicked from the server)
     if _success_downloads is None:
         _success_downloads = []
-    for current_page in range(i_page, _max_page):
+    for i_current_page in range(i_page, _max_page):
 
         # create URL to scrape using query and exact match bool
         url = str('https://libgen.is/search.php?req=' + str(_search_q).replace(' ', '+'))
         url = url + '&phrase=1&view=simple&column=def&sort=def&sortmode=ASC&page='
-        url = url+str(current_page)
+        url = url+str(i_current_page)
 
         print(f'{get_dt()} ' + color('[Search] ', c='LC') + color(search_q, c='W'))
-        print(f'{get_dt()} ' + color('[Page] ', c='LC') + f'Page: {current_page}')
+        print(f'{get_dt()} ' + color('[Page] ', c='LC') + f'Page: {i_current_page}')
         print(f'{get_dt()} ' + color('[Scanning] ', c='LC') + f'{url}')
         print(f'{get_dt()} ' + color('[Phase One] ', c='LC') + f'Gathering initial links...')
 
@@ -449,7 +449,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
         print(f'{get_dt()} ' + color('[Phase One Time] ', c='LC') + f'{time.perf_counter()-t0}')
 
         if len(results) == int(0):
-            print(f'{get_dt()} ' + color('[Max Page] ', c='LC') + f'No results were found on page {current_page}. Exiting.')
+            print(f'{get_dt()} ' + color('[Max Page] ', c='LC') + f'No results were found on page {i_current_page}. Exiting.')
             print('\n\n')
             break
 
@@ -470,8 +470,8 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
         print(f'{get_dt()} ' + color('[Enumerated Results] ', c='LC') + f'{len(enumerated_results)}')
         print(f'{get_dt()} ' + color('[Phase Two Time] ', c='LC') + f'{time.perf_counter()-t0}')
 
-        # Keep track of current page
-        i_progress = 0
+        # Current book on current page
+        i_current_book = 0
 
         # Synchronously (for now) attempt to download each book on the current page.
         for enumerated_result in enumerated_results:
@@ -479,7 +479,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
             if len(enumerated_result) >= 3:
                 print('_' * 28)
                 print('')
-                print(f'{get_dt()} {color("[Progress] ", c="LC")} {color(str(f"{i_progress+1}/{len(enumerated_results)} ({current_page}/{_max_page})"), c="W")}')
+                print(f'{get_dt()} {color("[Progress] ", c="LC")} {color(str(f"{i_current_book+1}/{len(enumerated_results)} ({i_current_page}/{_max_page})"), c="W")}')
                 print(f'{get_dt()} ' + color('[Category] ', c='LC') + color(str(_search_q), c='W'))
                 if _verbose is True:
                     print(f'{get_dt()} ' + color('[Handling Enumerated Result] ', c='Y') + color(str(enumerated_result), c='LC'))
@@ -522,7 +522,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
                     else:
                         print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File already exists in filesystem.', c='W'))
 
-                i_progress += 1
+                i_current_book += 1
 
         print('')
         print('')
