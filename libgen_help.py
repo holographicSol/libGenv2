@@ -2,7 +2,7 @@
 def display_help():
     print('')
     print('')
-    print('[  LibGenesis Downloader  ]')
+    print('[  LibGenesis Downloader   ]')
     print('')
     print('-k         Keyword       Specify a search string.')
     print('-e         Exact Match   Enable a strict results filter. Default is off.')
