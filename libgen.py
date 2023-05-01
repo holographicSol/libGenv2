@@ -144,6 +144,7 @@ def make_file_name(_filename: str) -> str:
     for char in _filename:
         if char in accept_chars:
             new_filename += char
+    new_filename = new_filename.strip()
     new_filename += '.pdf'
     return new_filename
 
@@ -215,24 +216,26 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
         # - if the file is in another place then a very small file may be downloaded because ultimately the file we
         #   wanted was not present and will then be detected and deleted.
         if os.path.getsize(dyn_download_args.filepath+'.tmp') >= dyn_download_args.min_file_size:
+
             if dyn_download_args.verbose is True:
-                print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Attempting to replace {dyn_download_args.filepath}.tmp', c='LC'))
+                print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Attempting to replace temporary file with actual file.', c='LC'))
 
             # create final download file from temporary file
             await aiofiles.os.replace(dyn_download_args.filepath+'.tmp', dyn_download_args.filepath)
-
-            if dyn_download_args.verbose is True:
-                print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Created {dyn_download_args.filepath}', c='LC'))
-
-            # check: clean up the temporary file if it exists.
-            if os.path.exists(dyn_download_args.filepath+'.tmp'):
-                await aiofiles.os.remove(dyn_download_args.filepath + '.tmp')
 
             # display download success (does not guarantee a usable file, some checks are performed before this point)
             if os.path.exists(dyn_download_args.filepath):
 
                 if dyn_download_args.verbose is True:
-                    print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Replaced {dyn_download_args.filepath}.tmp successfully', c='LC'))
+                    print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Replaced temporary file successfully.', c='LC'))
+
+                # check: clean up the temporary file if it exists.
+                if os.path.exists(dyn_download_args.filepath + '.tmp'):
+                    await aiofiles.os.remove(dyn_download_args.filepath + '.tmp')
+
+                if dyn_download_args.verbose is True:
+                    if not os.path.exists(dyn_download_args.filepath + '.tmp'):
+                        print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Removed temporary file.', c='LC'))
 
                 print(f'{get_dt()} ' + color('[Downloaded Successfully]', c='G'))
 
@@ -251,15 +254,15 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                         await handle.close()
                         lines = text.split('\n')
                         if dyn_download_args.filename in lines:
-                            print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Successfully appended {dyn_download_args.filename} to books_saved.txt', c='LC'))
+                            print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Successfully added book to books_saved.txt', c='LC'))
                         else:
-                            print(f'{get_dt()} ' + color('[File] ', c='R') + color(f'Failed to append {dyn_download_args.filename} to books_saved.txt', c='LC'))
+                            print(f'{get_dt()} ' + color('[File] ', c='R') + color(f'Failed to add book to books_saved.txt', c='LC'))
 
                 return True
 
             else:
                 if dyn_download_args.verbose is True:
-                    print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Issue replacing {dyn_download_args.filepath}.tmp', c='LC'))
+                    print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Issue replacing temporary file.', c='LC'))
 
         else:
             print(f'{get_dt()} ' + color(f'[Download Failed] ', c='R') + str(''))
@@ -292,9 +295,9 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
             # check: path still exists
             if dyn_download_args.verbose is True:
                 if not os.path.exists(dyn_download_args.filename+'.tmp'):
-                    print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Successfully removed {dyn_download_args.filepath}', c='LC'))
+                    print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Successfully removed temporary file.', c='LC'))
                 else:
-                    print(f'{get_dt()} ' + color('[File] ', c='R') + color(f'Failed to remove {dyn_download_args.filepath}', c='LC'))
+                    print(f'{get_dt()} ' + color('[File] ', c='R') + color(f'Failed to remove temporary file.', c='LC'))
 
             return False
 
