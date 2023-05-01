@@ -574,8 +574,6 @@ else:
 
     """ Exact Match """
     exact_match = False
-    if '-e' in stdin:
-        exact_match = True
 
     """ Page """
     i_page = 1

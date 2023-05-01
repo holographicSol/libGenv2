@@ -5,7 +5,6 @@ def display_help():
     print('[  LibGenesis Downloader   ]')
     print('')
     print('-k         Keyword       Specify a search string.')
-    print('-e         Exact Match   Enable a strict results filter. Default is off.')
     print('-p         Page          Specify a page to start downloading from (optional). -p 1')
     print('-P         Path          Specify save path (optional).')
     print('-max       Max           Specify a page to end downloading (optional). -max 3')
