@@ -323,14 +323,12 @@ def parse_soup_phase_two(_soup: bs4.BeautifulSoup, _book_urls: list) -> list:
             title = title[7]
             title = title[2:]
             title = title[:-2]
-            print('title:', title)
             _book_urls.append(title)
             break
 
     for link in _soup.find_all('a'):
         href = link.get('href')
         if str(href).endswith('.pdf'):
-            print(href)
             _book_urls.append(href)
 
     return _book_urls
