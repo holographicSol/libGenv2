@@ -1,8 +1,9 @@
 """ Written by Benjamin Jack Cullen """
-import dataclasses
 import os
-import string
 import sys
+import re
+import dataclasses
+import string
 import time
 import shutil
 import datetime
@@ -145,6 +146,7 @@ def make_file_name(_filename: str) -> str:
         if char in accept_chars:
             new_filename += char
     new_filename = new_filename.strip()
+    new_filename = re.sub('\s+', ' ', new_filename)
     new_filename += '.pdf'
     return new_filename
 
