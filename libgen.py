@@ -543,7 +543,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
 
         print('')
         print('')
-        print('[  LibGenesis Downloader  ]')
+        print('[  LibGenesis Downloader   ]')
         print('')
 
 
@@ -554,7 +554,7 @@ if '-h' in stdin:
 else:
     print('')
     print('')
-    print('[  LibGenesis Downloader  ]')
+    print('[  LibGenesis Downloader   ]')
     print('')
 
     verbose = False
