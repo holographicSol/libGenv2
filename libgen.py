@@ -389,7 +389,7 @@ async def enumerate_links(_book_urls: list, _verbose: bool) -> list:
                     _soup = await asyncio.to_thread(get_soup, _body=_body)
                     if _soup:
                         data = await asyncio.to_thread(parse_soup_phase_two, _soup=_soup, _book_urls=_book_urls)
-                        # append together for list alignment later (when creating filenames for current download link)
+                        # base urls, title, download links
                         if len(data) >= 3:
                             # when all the lights turn green we have everything we need
                             if _verbose is True:
@@ -421,6 +421,7 @@ async def enumerate_links(_book_urls: list, _verbose: bool) -> list:
         await enumerate_links(_book_urls=_book_urls, _verbose=_verbose)
 
     if len(_book_urls) >= 3:
+        # base urls, title, download links
         return _book_urls
 
 
