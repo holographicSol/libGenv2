@@ -141,7 +141,7 @@ def play():
         time.sleep(1)
 
 
-def make_file_name(_title: str, _url: str, _link_index: int) -> str:
+def make_file_name(_title: str, _url: str) -> str:
     """ create filenames from book URLs """
     accept_chars = string.ascii_letters + string.digits + ' ' + '!' + '(' + ')' + '+' + '=' + '<' + '>' + '[' + ']' + '{' + '}'
     new_filename = ''
@@ -171,15 +171,13 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
     Make use of faster async read/write and aiohhttp while also not needing to make this function non-blocking -
     (This function runs one instance at a time to prevent being kicked). """
 
-    # Default is 2. [0] Base URL, [1] Title, [2+] Download links
+    # Default 2: [0] Base URL, [1] Title, [2+] Download links.
     _link_index = 2
 
-    # Create filename using filepath and url[_link_index] extension (This means we can dynamically change/specify
-    # _link_index and the downlooded file extension will change dynamically too according to the URL extension).
+    # Create filename using filepath and url[_link_index] extension
     dyn_download_args.filename = make_file_name(_title=dyn_download_args.url[1],
-                                                _url=dyn_download_args.url[_link_index],
-                                                _link_index=_link_index)
-    dyn_download_args.filename = dyn_download_args.filepath + dyn_download_args.filename
+                                                _url=dyn_download_args.url[_link_index])
+    dyn_download_args.filepath = dyn_download_args.filepath + dyn_download_args.filename
 
     # Output: Filename and download link
     print(f'{get_dt()} ' + color('[Book] ', c='LC') + color(str(dyn_download_args.filename), c='W'))
@@ -204,7 +202,7 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                             _sz = int(0)
 
                             # open file to write the bytes into
-                            async with aiofiles.open(dyn_download_args.filename+'.tmp', mode='wb') as handle:
+                            async with aiofiles.open(dyn_download_args.filepath+'.tmp', mode='wb') as handle:
 
                                 # iterate over chunks of bytes in the response
                                 async for chunk in resp.content.iter_chunked(_chunk_size):
@@ -228,9 +226,9 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                                         print(str(color(s='[WARNING] OUT OF DISK SPACE! Download terminated.', c='Y')), end='\r', flush=True)
 
                                         # delete temporary file if exists
-                                        if os.path.exists(dyn_download_args.filename + '.tmp'):
+                                        if os.path.exists(dyn_download_args.filepath + '.tmp'):
                                             await handle.close()
-                                            await aiofiles.os.remove(dyn_download_args.filename + '.tmp')
+                                            await aiofiles.os.remove(dyn_download_args.filepath + '.tmp')
                                         # exit.
                                         print('\n\n')
                                         exit(0)
@@ -251,32 +249,32 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                 await asyncio.sleep(server_disconnected_error_retry)
                 await download_file(dyn_download_args)
 
-            if os.path.exists(dyn_download_args.filename+'.tmp'):
+            if os.path.exists(dyn_download_args.filepath+'.tmp'):
 
                 # check: temporary file worth keeping? (<1024 bytes would be less than 1024 characters, reduce this if needed)
                 # - sometimes file exists on a different server, this software does not intentionally follow any external links,
                 # - if the file is in another place then a very small file may be downloaded because ultimately the file we
                 #   wanted was not present and will then be detected and deleted.
-                if os.path.getsize(dyn_download_args.filename+'.tmp') >= dyn_download_args.min_file_size:
+                if os.path.getsize(dyn_download_args.filepath+'.tmp') >= dyn_download_args.min_file_size:
 
                     if dyn_download_args.verbose is True:
                         print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Attempting to replace temporary file with actual file.', c='LC'))
 
                     # create final download file from temporary file
-                    await aiofiles.os.replace(dyn_download_args.filename+'.tmp', dyn_download_args.filename)
+                    await aiofiles.os.replace(dyn_download_args.filepath+'.tmp', dyn_download_args.filepath)
 
                     # display download success (does not guarantee a usable file, some checks are performed before this point)
-                    if os.path.exists(dyn_download_args.filename):
+                    if os.path.exists(dyn_download_args.filepath):
 
                         if dyn_download_args.verbose is True:
                             print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Replaced temporary file successfully.', c='LC'))
                         print(f'{get_dt()} ' + color('[Downloaded Successfully]', c='G'))
 
                         # check: clean up the temporary file if it exists.
-                        if os.path.exists(dyn_download_args.filename + '.tmp'):
-                            await aiofiles.os.remove(dyn_download_args.filename + '.tmp')
+                        if os.path.exists(dyn_download_args.filepath + '.tmp'):
+                            await aiofiles.os.remove(dyn_download_args.filepath + '.tmp')
                         if dyn_download_args.verbose is True:
-                            if not os.path.exists(dyn_download_args.filename + '.tmp'):
+                            if not os.path.exists(dyn_download_args.filepath + '.tmp'):
                                 print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Removed temporary file.', c='LC'))
 
                         # add book to saved list. multi-drive/system memory (continue where you left off on another disk/sys)
