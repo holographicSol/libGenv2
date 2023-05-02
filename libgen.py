@@ -66,7 +66,6 @@ class DownloadArgs:
     preferred_dl_link: str
 
 
-first_try = True
 _retry_download = int(0)
 
 # set master timeout
@@ -183,19 +182,6 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
     This function is currently designed to run synchronously while also having asynchronous features.
     Make use of faster async read/write and aiohhttp while also not needing to make this function non-blocking -
     (This function runs one instance at a time to prevent being kicked). """
-
-    global first_try
-
-    # Default 2: [0] Base URL, [1] Title, [2+] Download links.
-    _link_index = index_preferred_download_link(_urls=dyn_download_args.url,
-                                                _preferred_dl_link=dyn_download_args.preferred_dl_link)
-
-    if first_try is True:
-        first_try = False
-        # Create filename using filepath and url[_link_index] extension
-        dyn_download_args.filename = make_file_name(_title=dyn_download_args.url[1],
-                                                    _url=dyn_download_args.url[_link_index])
-        dyn_download_args.filepath = dyn_download_args.filepath + dyn_download_args.filename
 
     # Output: Link index
     print(f'{get_dt()} ' + color('[Link Index] ', c='LC') + color(str(_link_index), c='W'))
@@ -482,7 +468,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
                _success_downloads=None, _failed_downloads=None, _ds_bytes=False, _verbose=False,
                _results_per_page='50', _column='title', _preferred_dl_link=''):
 
-    global _retry_download, first_try
+    global _retry_download
 
     # Phase One: Setup async scaper to get book URLs (one page at a time to prevent getting kicked from the server)
     if _success_downloads is None:
@@ -569,14 +555,22 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
                 if not os.path.exists(lib_path + '/' + _search_q):
                     os.makedirs(lib_path + '/' + _search_q, exist_ok=True)
 
-                # Make filename from URL
-                # filename = make_file_name(_enumerated_result=enumerated_result)
-                filepath = lib_path + '/' + _search_q + '/'  # + filename
+                # Make filename from URL and title:
+
+                # Default 2: [0] Base URL, [1] Title, [2+] Download links.
+                _link_index = index_preferred_download_link(_urls=enumerated_result,
+                                                            _preferred_dl_link=_preferred_dl_link)
+
+                # Create filename using filepath and url[_link_index] extension
+                filename = make_file_name(_title=enumerated_result[1],
+                                          _url=enumerated_result[_link_index])
+
+                filepath = lib_path + '/' + _search_q + '/' + filename
 
                 # create a dataclass for the downloader then run the downloader handler
                 dyn_download_args = DownloadArgs(verbose=_verbose,
                                                  url=enumerated_result,
-                                                 filename='./to_be_populated',
+                                                 filename=filename,
                                                  filepath=filepath,
                                                  chunk_size=8192,
                                                  clear_n_chars=50,
@@ -587,7 +581,6 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
                                                  ds_bytes=_ds_bytes,
                                                  preferred_dl_link=_preferred_dl_link)
                 _retry_download = 0
-                first_try = True
                 await run_downloader(dyn_download_args)
 
             i_current_book += 1
