@@ -344,7 +344,6 @@ def parse_soup_phase_two(_soup: bs4.BeautifulSoup, _book_urls: list) -> list:
         if str(href).endswith(tuple(ebook_ext.ebook_extensions_slim)):
             if str(href) not in _book_urls:
                 _book_urls.append(str(href))
-
     return _book_urls
 
 
@@ -400,6 +399,7 @@ async def enumerate_links(_book_urls: list, _verbose: bool) -> list:
                     # retry because the response was not 200
                     if _verbose is True:
                         print(f'{get_dt()} ' + color(f'[RESPONSE] {str(resp.status)}. Retrying: {_book_urls}', c='Y'))
+                    await asyncio.sleep(2)
                     await enumerate_links(_book_urls=_book_urls, _verbose=_verbose)
 
     except asyncio.exceptions.TimeoutError:
@@ -419,6 +419,9 @@ async def enumerate_links(_book_urls: list, _verbose: bool) -> list:
             print(f'{get_dt()} ' + color(f'[SERVER DISCONNECTED ERROR] Retrying in {server_disconnected_error_retry} seconds.', c='Y'))
         await asyncio.sleep(server_disconnected_error_retry)
         await enumerate_links(_book_urls=_book_urls, _verbose=_verbose)
+
+    if len(_book_urls) >= 3:
+        return _book_urls
 
 
 async def run_downloader(dyn_download_args):
@@ -493,12 +496,19 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
         enumerated_results = await asyncio.gather(*tasks)
         if _verbose is True:
             print(f'{get_dt()} ' + color('[Enumerated Results] ', c='Y') + color(str(enumerated_results), c='LC'))
+        print(f'{get_dt()} ' + color('[Enumerated Results] ', c='LC') + f'{len(enumerated_results)}')
         enumerated_results[:] = [item for item in enumerated_results if item is not None]
 
         if _verbose is True:
             print(f'{get_dt()} ' + color('[Enumerated Results Formatted] ', c='Y') + color(str(enumerated_results), c='LC'))
-        print(f'{get_dt()} ' + color('[Enumerated Results] ', c='LC') + f'{len(enumerated_results)}')
+        print(f'{get_dt()} ' + color('[Enumerated Results Formatted] ', c='LC') + f'{len(enumerated_results)}')
         print(f'{get_dt()} ' + color('[Phase Two Time] ', c='LC') + f'{time.perf_counter()-t0}')
+
+        # uncomment to see all
+        # for enumerated_result in enumerated_results:
+        #     if len(enumerated_result) < 3:
+        #         print(enumerated_result)
+        # break
 
         # uncomment to see what may have been missed
         # for enumerated_result in enumerated_results:
