@@ -142,7 +142,7 @@ def play():
 
 def make_file_name(_enumerated_result: list) -> str:
     """ create filenames from book URLs """
-    accept_chars = string.ascii_letters + string.digits + ' ' + '!' + '(' + ')' + '+' + '=' + '<' + '>' + '?' + '[' + ']' + '{' + '}'
+    accept_chars = string.ascii_letters + string.digits + ' ' + '!' + '(' + ')' + '+' + '=' + '<' + '>' + '[' + ']' + '{' + '}'
     new_filename = ''
     for char in _enumerated_result[1]:
         if char in accept_chars:
