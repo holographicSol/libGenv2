@@ -74,6 +74,7 @@ master_timeout = 86400  # 24h
 # set scraper timeout/connection-issue retry time intervals
 timeout_retry = 2
 connection_error_retry = 10
+server_disconnected_error_retry = 5
 
 # configure options for scraping
 scrape_timeout = aiohttp.ClientTimeout(
@@ -233,6 +234,11 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
         await asyncio.sleep(connection_error_retry)
         await download_file(dyn_download_args)
 
+    except aiohttp.ServerDisconnectedError:
+        print(f'{get_dt()} ' + color(f'[SERVER DISCONNECTED ERROR] Retrying in {server_disconnected_error_retry} seconds.', c='Y'))
+        await asyncio.sleep(server_disconnected_error_retry)
+        await download_file(dyn_download_args)
+
     if os.path.exists(dyn_download_args.filepath+'.tmp'):
 
         # check: temporary file worth keeping? (<1024 bytes would be less than 1024 characters, reduce this if needed)
@@ -252,16 +258,14 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
 
                 if dyn_download_args.verbose is True:
                     print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Replaced temporary file successfully.', c='LC'))
+                print(f'{get_dt()} ' + color('[Downloaded Successfully]', c='G'))
 
                 # check: clean up the temporary file if it exists.
                 if os.path.exists(dyn_download_args.filepath + '.tmp'):
                     await aiofiles.os.remove(dyn_download_args.filepath + '.tmp')
-
                 if dyn_download_args.verbose is True:
                     if not os.path.exists(dyn_download_args.filepath + '.tmp'):
                         print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Removed temporary file.', c='LC'))
-
-                print(f'{get_dt()} ' + color('[Downloaded Successfully]', c='G'))
 
                 # add book to saved list. multi-drive/system memory (continue where you left off on another disk/sys)
                 if dyn_download_args.log is True:
@@ -363,6 +367,12 @@ async def scrape_pages(url: str) -> list:
         print(f'{get_dt()} ' + color(f'[CONNECTION ERROR] Initial scraper connection error. Retrying in {connection_error_retry} seconds.', c='Y'))
         await asyncio.sleep(timeout_retry)
         await enumerate_links(url)
+
+    except aiohttp.ServerDisconnectedError:
+        print(f'{get_dt()} ' + color(f'[SERVER DISCONNECTED ERROR] Retrying in {server_disconnected_error_retry} seconds.', c='Y'))
+        await asyncio.sleep(server_disconnected_error_retry)
+        await enumerate_links(url)
+
     return book_urls
 
 
@@ -396,50 +406,29 @@ async def enumerate_links(_book_urls: list) -> list:
         print(f'{get_dt()} ' + color(f'[CONNECTION ERROR] Enumeration connection error. Retrying in {connection_error_retry} seconds.', c='Y'))
         await asyncio.sleep(timeout_retry)
         await enumerate_links(_book_urls)
-    # return _book_urls
+
+    except aiohttp.ServerDisconnectedError:
+        print(f'{get_dt()} ' + color(f'[SERVER DISCONNECTED ERROR] Retrying in {server_disconnected_error_retry} seconds.', c='Y'))
+        await asyncio.sleep(server_disconnected_error_retry)
+        await enumerate_links(_book_urls)
 
 
 async def run_downloader(dyn_download_args):
     global _retry_download
 
-    try:
-        # Download file
+    # download file
+    dl_tasks = []
+    dl_task = asyncio.create_task(download_file(dyn_download_args))
+    dl_tasks.append(dl_task)
+    dl = await asyncio.gather(*dl_tasks)
 
-        dl_tasks = []
-        dl_task = asyncio.create_task(download_file(dyn_download_args))
-        dl_tasks.append(dl_task)
-        dl = await asyncio.gather(*dl_tasks)
+    if dl[0] is True:
 
-        if dl[0] is True:
-
-            # Notification sound after platform check (Be compatible on Termux on Android)
-            if os.name in ('nt', 'dos'):
-                if mute_default_player is False:
-                    play_thread = Thread(target=play)
-                    play_thread.start()
-
-    except Exception as e:
-        # Output: any issues
-        print(f'{get_dt()} ' + color(f'[Exception.download] {e}', c='R'))
-
-        if 'Server disconnected' in str(e):
-            print(f'{get_dt()} ' + color(f'[Retrying] Server disconnected and has limited connections at any one time.', c='Y'))
-            await run_downloader(dyn_download_args)
-
-        # else:
-        #     if _retry_download <= 10:
-        #         print(f'{get_dt()} ' + color(f'[Retrying] {_retry_download+1}/3', c='Y'))
-        #         _retry_download += 1
-        #         await run_downloader(dyn_download_args)
-
-        print(f'{get_dt()} ' + color('[Download Failed]', c='R'))
-
-        # Remove the file if it was created to clean up after ourselves
-        if os.path.exists(dyn_download_args.filepath):
-            os.remove(dyn_download_args.filepath)
-        # check: clean up the temporary file if it exists.
-        if os.path.exists(dyn_download_args.filepath + '.tmp'):
-            os.remove(dyn_download_args.filepath + '.tmp')
+        # Notification sound after platform check (Be compatible on Termux on Android)
+        if os.name in ('nt', 'dos'):
+            if mute_default_player is False:
+                play_thread = Thread(target=play)
+                play_thread.start()
 
 
 async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_path='./library/',
