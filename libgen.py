@@ -166,12 +166,13 @@ def out_of_disk_space(_chunk_size: int) -> bool:
 
 def index_preferred_download_link(_urls: list, _preferred_dl_link: str):
     _link_index = 2
-    i_url = 0
-    for url in _urls:
-        if str(_preferred_dl_link).strip() in str(url).strip() and i_url >= 2:
-            _link_index = i_url
-            break
-        i_url += 1
+    if not _preferred_dl_link == 'none_specified':
+        i_url = 0
+        for url in _urls:
+            if str(_preferred_dl_link).strip() in str(url).strip() and i_url >= 2:
+                _link_index = i_url
+                break
+            i_url += 1
     return _link_index
 
 
@@ -660,7 +661,7 @@ else:
         column = 'author'
     
     # Be polite: please use the --cloudflare argument to be polite to libgen servers (and it may be faster).
-    preferred_dl_link = 'http://62.182.86.140'
+    preferred_dl_link = 'none_specified'
     if '--cloudflare' in stdin:
         preferred_dl_link = 'https://cloudflare'
     
