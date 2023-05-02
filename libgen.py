@@ -64,6 +64,7 @@ class DownloadArgs:
     failed_downloads: list
     ds_bytes: bool
     preferred_dl_link: str
+    link_index: int
 
 
 _retry_download = int(0)
@@ -184,13 +185,13 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
     (This function runs one instance at a time to prevent being kicked). """
 
     # Output: Link index
-    print(f'{get_dt()} ' + color('[Link Index] ', c='LC') + color(str(_link_index), c='W'))
+    print(f'{get_dt()} ' + color('[Link Index] ', c='LC') + color(str(dyn_download_args.link_index), c='W'))
 
     # Output: Filename and download link
     print(f'{get_dt()} ' + color('[Book] ', c='LC') + color(str(dyn_download_args.filename), c='W'))
 
     _chunk_size = dyn_download_args.chunk_size
-    print(f'{get_dt()} ' + color('[URL] ', c='LC') + color(str(dyn_download_args.url[_link_index]), c='W'))
+    print(f'{get_dt()} ' + color('[URL] ', c='LC') + color(str(dyn_download_args.url[dyn_download_args.link_index]), c='W'))
 
     # Check: Filename exists in filesystem save location
     if not os.path.exists(dyn_download_args.filename):
@@ -200,7 +201,7 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
 
             try:
                 async with aiohttp.ClientSession(headers=user_agent(), **client_args_download) as session:
-                    async with session.get(dyn_download_args.url[_link_index]) as resp:
+                    async with session.get(dyn_download_args.url[dyn_download_args.link_index]) as resp:
                         if dyn_download_args.verbose is True:
                             print(f'{get_dt()} ' + color('[Response] ', c='Y') + color(str(resp.status), c='LC'))
                         if resp.status == 200:
@@ -579,7 +580,8 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
                                                  success_downloads=_success_downloads,
                                                  failed_downloads=_failed_downloads,
                                                  ds_bytes=_ds_bytes,
-                                                 preferred_dl_link=_preferred_dl_link)
+                                                 preferred_dl_link=_preferred_dl_link,
+                                                 link_index=_link_index)
                 _retry_download = 0
                 await run_downloader(dyn_download_args)
 
