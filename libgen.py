@@ -141,21 +141,17 @@ def play():
         time.sleep(1)
 
 
-def make_file_name(_enumerated_result: list) -> str:
+def make_file_name(_title: str, _url: str, _link_index: int) -> str:
     """ create filenames from book URLs """
     accept_chars = string.ascii_letters + string.digits + ' ' + '!' + '(' + ')' + '+' + '=' + '<' + '>' + '[' + ']' + '{' + '}'
     new_filename = ''
-    for char in _enumerated_result[1]:
+    for char in _title:
         if char in accept_chars:
             new_filename += char
     new_filename = new_filename.strip()
     new_filename = re.sub('\s+', ' ', new_filename)
-
-    # (Change to use a different link, should align with download_file._link_index if changed)
-    _link_index = 2
-
-    url_idx = _enumerated_result[_link_index].rfind('.')
-    ext = _enumerated_result[_link_index][url_idx:]
+    url_idx = _url.rfind('.')
+    ext = _url[url_idx:]
     new_filename += ext
     return new_filename
 
@@ -175,138 +171,158 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
     Make use of faster async read/write and aiohhttp while also not needing to make this function non-blocking -
     (This function runs one instance at a time to prevent being kicked). """
 
-    # (Change to use a different link, should align with make_file_name._link_index if changed)
+    # Default is 2. [0] Base URL, [1] Title, [2+] Download links
     _link_index = 2
+
+    # Create filename using filepath and url[_link_index] extension (This means we can dynamically change/specify
+    # _link_index and the downlooded file extension will change dynamically too according to the URL extension).
+    dyn_download_args.filename = make_file_name(_title=dyn_download_args.url[1],
+                                                _url=dyn_download_args.url[_link_index],
+                                                _link_index=_link_index)
+    dyn_download_args.filename = dyn_download_args.filepath + dyn_download_args.filename
+
+    # Output: Filename and download link
+    print(f'{get_dt()} ' + color('[Book] ', c='LC') + color(str(dyn_download_args.filename), c='W'))
 
     _chunk_size = dyn_download_args.chunk_size
     print(f'{get_dt()} ' + color('[URL] ', c='LC') + color(str(dyn_download_args.url[_link_index]), c='W'))
 
-    try:
-        async with aiohttp.ClientSession(headers=user_agent(), **client_args_download) as session:
-            async with session.get(dyn_download_args.url[_link_index]) as resp:
-                if dyn_download_args.verbose is True:
-                    print(f'{get_dt()} ' + color('[Response] ', c='Y') + color(str(resp.status), c='LC'))
-                if resp.status == 200:
+    # Check: Filename exists in filesystem save location
+    if not os.path.exists(dyn_download_args.filename):
 
-                    # keep track of how many bytes have been downloaded
-                    _sz = int(0)
+        # Check: Filename exists in books_saved.txt
+        if dyn_download_args.filename not in success_downloads:
 
-                    # open file to write the bytes into
-                    async with aiofiles.open(dyn_download_args.filepath+'.tmp', mode='wb') as handle:
+            try:
+                async with aiohttp.ClientSession(headers=user_agent(), **client_args_download) as session:
+                    async with session.get(dyn_download_args.url[_link_index]) as resp:
+                        if dyn_download_args.verbose is True:
+                            print(f'{get_dt()} ' + color('[Response] ', c='Y') + color(str(resp.status), c='LC'))
+                        if resp.status == 200:
 
-                        # iterate over chunks of bytes in the response
-                        async for chunk in resp.content.iter_chunked(_chunk_size):
+                            # keep track of how many bytes have been downloaded
+                            _sz = int(0)
 
-                            # storage check:
-                            if await asyncio.to_thread(out_of_disk_space, _chunk_size=dyn_download_args.chunk_size) is False:
+                            # open file to write the bytes into
+                            async with aiofiles.open(dyn_download_args.filename+'.tmp', mode='wb') as handle:
 
-                                # write chunk to the temporary file
-                                await handle.write(chunk)
+                                # iterate over chunks of bytes in the response
+                                async for chunk in resp.content.iter_chunked(_chunk_size):
 
-                                # output: display download progress
-                                _sz += int(len(chunk))
-                                print(' ' * dyn_download_args.clear_n_chars, end='\r', flush=True)
-                                if dyn_download_args.ds_bytes is False:
-                                    print(f'[DOWNLOADING] {str(convert_bytes(_sz))}', end='\r', flush=True)
-                                else:
-                                    print(f'[DOWNLOADING] {str(_sz)} bytes', end='\r', flush=True)
-                            else:
-                                # output: out of disk space
-                                print(' ' * dyn_download_args.clear_n_chars, end='\r', flush=True)
-                                print(str(color(s='[WARNING] OUT OF DISK SPACE! Download terminated.', c='Y')), end='\r', flush=True)
+                                    # storage check:
+                                    if await asyncio.to_thread(out_of_disk_space, _chunk_size=dyn_download_args.chunk_size) is False:
 
-                                # delete temporary file if exists
-                                if os.path.exists(dyn_download_args.filepath + '.tmp'):
-                                    await handle.close()
-                                    await aiofiles.os.remove(dyn_download_args.filepath + '.tmp')
-                                # exit.
-                                print('\n\n')
-                                exit(0)
-                    await handle.close()
+                                        # write chunk to the temporary file
+                                        await handle.write(chunk)
 
-    except asyncio.exceptions.TimeoutError:
-        print(f'{get_dt()} ' + color(f'[TIMEOUT] Enumeration timeout. Retrying in {timeout_retry} seconds.', c='Y'))
-        await asyncio.sleep(timeout_retry)
-        await download_file(dyn_download_args)
+                                        # output: display download progress
+                                        _sz += int(len(chunk))
+                                        print(' ' * dyn_download_args.clear_n_chars, end='\r', flush=True)
+                                        if dyn_download_args.ds_bytes is False:
+                                            print(f'[DOWNLOADING] {str(convert_bytes(_sz))}', end='\r', flush=True)
+                                        else:
+                                            print(f'[DOWNLOADING] {str(_sz)} bytes', end='\r', flush=True)
+                                    else:
+                                        # output: out of disk space
+                                        print(' ' * dyn_download_args.clear_n_chars, end='\r', flush=True)
+                                        print(str(color(s='[WARNING] OUT OF DISK SPACE! Download terminated.', c='Y')), end='\r', flush=True)
 
-    except aiohttp.ClientConnectorError:
-        print(f'{get_dt()} ' + color(f'[CONNECTION ERROR] Enumeration connection error. Retrying in {connection_error_retry} seconds.', c='Y'))
-        await asyncio.sleep(connection_error_retry)
-        await download_file(dyn_download_args)
+                                        # delete temporary file if exists
+                                        if os.path.exists(dyn_download_args.filename + '.tmp'):
+                                            await handle.close()
+                                            await aiofiles.os.remove(dyn_download_args.filename + '.tmp')
+                                        # exit.
+                                        print('\n\n')
+                                        exit(0)
+                            await handle.close()
 
-    except aiohttp.ServerDisconnectedError:
-        print(f'{get_dt()} ' + color(f'[SERVER DISCONNECTED ERROR] Retrying in {server_disconnected_error_retry} seconds.', c='Y'))
-        await asyncio.sleep(server_disconnected_error_retry)
-        await download_file(dyn_download_args)
+            except asyncio.exceptions.TimeoutError:
+                print(f'{get_dt()} ' + color(f'[TIMEOUT] Enumeration timeout. Retrying in {timeout_retry} seconds.', c='Y'))
+                await asyncio.sleep(timeout_retry)
+                await download_file(dyn_download_args)
 
-    if os.path.exists(dyn_download_args.filepath+'.tmp'):
+            except aiohttp.ClientConnectorError:
+                print(f'{get_dt()} ' + color(f'[CONNECTION ERROR] Enumeration connection error. Retrying in {connection_error_retry} seconds.', c='Y'))
+                await asyncio.sleep(connection_error_retry)
+                await download_file(dyn_download_args)
 
-        # check: temporary file worth keeping? (<1024 bytes would be less than 1024 characters, reduce this if needed)
-        # - sometimes file exists on a different server, this software does not intentionally follow any external links,
-        # - if the file is in another place then a very small file may be downloaded because ultimately the file we
-        #   wanted was not present and will then be detected and deleted.
-        if os.path.getsize(dyn_download_args.filepath+'.tmp') >= dyn_download_args.min_file_size:
+            except aiohttp.ServerDisconnectedError:
+                print(f'{get_dt()} ' + color(f'[SERVER DISCONNECTED ERROR] Retrying in {server_disconnected_error_retry} seconds.', c='Y'))
+                await asyncio.sleep(server_disconnected_error_retry)
+                await download_file(dyn_download_args)
 
-            if dyn_download_args.verbose is True:
-                print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Attempting to replace temporary file with actual file.', c='LC'))
-
-            # create final download file from temporary file
-            await aiofiles.os.replace(dyn_download_args.filepath+'.tmp', dyn_download_args.filepath)
-
-            # display download success (does not guarantee a usable file, some checks are performed before this point)
-            if os.path.exists(dyn_download_args.filepath):
-
-                if dyn_download_args.verbose is True:
-                    print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Replaced temporary file successfully.', c='LC'))
-                print(f'{get_dt()} ' + color('[Downloaded Successfully]', c='G'))
-
-                # check: clean up the temporary file if it exists.
-                if os.path.exists(dyn_download_args.filepath + '.tmp'):
-                    await aiofiles.os.remove(dyn_download_args.filepath + '.tmp')
-                if dyn_download_args.verbose is True:
-                    if not os.path.exists(dyn_download_args.filepath + '.tmp'):
-                        print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Removed temporary file.', c='LC'))
-
-                # add book to saved list. multi-drive/system memory (continue where you left off on another disk/sys)
-                if dyn_download_args.log is True:
-                    if dyn_download_args.filename not in success_downloads:
-                        success_downloads.append(dyn_download_args.filename)
-                        async with aiofiles.open('./books_saved.txt', mode='a+', encoding='utf8') as handle:
-                            await handle.write(dyn_download_args.filename + '\n')
-                        await handle.close()
-
-                    # read file and check if new entry exists
-                    if dyn_download_args.verbose is True:
-                        async with aiofiles.open('./books_saved.txt', mode='r', encoding='utf8') as handle:
-                            text = await handle.read()
-                        await handle.close()
-                        lines = text.split('\n')
-                        if dyn_download_args.filename in lines:
-                            print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Successfully added book to books_saved.txt', c='LC'))
-                        else:
-                            print(f'{get_dt()} ' + color('[File] ', c='R') + color(f'Failed to add book to books_saved.txt', c='LC'))
-
-                return True
-
-            else:
-                if dyn_download_args.verbose is True:
-                    print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Issue replacing temporary file.', c='LC'))
-
-        else:
-            print(f'{get_dt()} ' + color(f'[Download Failed] ', c='R') + str(''))
-
-            # check: clean up the temporary file if it exists.
             if os.path.exists(dyn_download_args.filename+'.tmp'):
-                os.remove(dyn_download_args.filename+'.tmp')
 
-            # check: path still exists
-            if dyn_download_args.verbose is True:
-                if not os.path.exists(dyn_download_args.filename+'.tmp'):
-                    print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Successfully removed temporary file.', c='LC'))
+                # check: temporary file worth keeping? (<1024 bytes would be less than 1024 characters, reduce this if needed)
+                # - sometimes file exists on a different server, this software does not intentionally follow any external links,
+                # - if the file is in another place then a very small file may be downloaded because ultimately the file we
+                #   wanted was not present and will then be detected and deleted.
+                if os.path.getsize(dyn_download_args.filename+'.tmp') >= dyn_download_args.min_file_size:
+
+                    if dyn_download_args.verbose is True:
+                        print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Attempting to replace temporary file with actual file.', c='LC'))
+
+                    # create final download file from temporary file
+                    await aiofiles.os.replace(dyn_download_args.filename+'.tmp', dyn_download_args.filename)
+
+                    # display download success (does not guarantee a usable file, some checks are performed before this point)
+                    if os.path.exists(dyn_download_args.filename):
+
+                        if dyn_download_args.verbose is True:
+                            print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Replaced temporary file successfully.', c='LC'))
+                        print(f'{get_dt()} ' + color('[Downloaded Successfully]', c='G'))
+
+                        # check: clean up the temporary file if it exists.
+                        if os.path.exists(dyn_download_args.filename + '.tmp'):
+                            await aiofiles.os.remove(dyn_download_args.filename + '.tmp')
+                        if dyn_download_args.verbose is True:
+                            if not os.path.exists(dyn_download_args.filename + '.tmp'):
+                                print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Removed temporary file.', c='LC'))
+
+                        # add book to saved list. multi-drive/system memory (continue where you left off on another disk/sys)
+                        if dyn_download_args.log is True:
+                            if dyn_download_args.filename not in success_downloads:
+                                success_downloads.append(dyn_download_args.filename)
+                                async with aiofiles.open('./books_saved.txt', mode='a+', encoding='utf8') as handle:
+                                    await handle.write(dyn_download_args.filename + '\n')
+                                await handle.close()
+
+                            # read file and check if new entry exists
+                            if dyn_download_args.verbose is True:
+                                async with aiofiles.open('./books_saved.txt', mode='r', encoding='utf8') as handle:
+                                    text = await handle.read()
+                                await handle.close()
+                                lines = text.split('\n')
+                                if dyn_download_args.filename in lines:
+                                    print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Successfully added book to books_saved.txt', c='LC'))
+                                else:
+                                    print(f'{get_dt()} ' + color('[File] ', c='R') + color(f'Failed to add book to books_saved.txt', c='LC'))
+
+                        return True
+
+                    else:
+                        if dyn_download_args.verbose is True:
+                            print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Issue replacing temporary file.', c='LC'))
+
                 else:
-                    print(f'{get_dt()} ' + color('[File] ', c='R') + color(f'Failed to remove temporary file.', c='LC'))
+                    print(f'{get_dt()} ' + color(f'[Download Failed] ', c='R') + str(''))
 
-            return False
+                    # check: clean up the temporary file if it exists.
+                    if os.path.exists(dyn_download_args.filename+'.tmp'):
+                        os.remove(dyn_download_args.filename+'.tmp')
+
+                    # check: path still exists
+                    if dyn_download_args.verbose is True:
+                        if not os.path.exists(dyn_download_args.filename+'.tmp'):
+                            print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Successfully removed temporary file.', c='LC'))
+                        else:
+                            print(f'{get_dt()} ' + color('[File] ', c='R') + color(f'Failed to remove temporary file.', c='LC'))
+
+                    return False
+        else:
+            print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File exists in records.', c='W'))
+    else:
+        print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File already exists in filesystem.', c='W'))
 
 
 def get_soup(_body: str) -> bs4.BeautifulSoup:
@@ -507,8 +523,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
 
         # uncomment to see all
         # for enumerated_result in enumerated_results:
-        #     if len(enumerated_result) < 3:
-        #         print(enumerated_result)
+        #     print(enumerated_result)
         # break
 
         # uncomment to see what may have been missed
@@ -536,38 +551,24 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
                     os.makedirs(lib_path + '/' + _search_q, exist_ok=True)
 
                 # Make filename from URL
-                filename = make_file_name(_enumerated_result=enumerated_result)
-                filepath = lib_path + '/' + _search_q + '/' + filename
+                # filename = make_file_name(_enumerated_result=enumerated_result)
+                filepath = lib_path + '/' + _search_q + '/'  # + filename
 
-                # Output: Filename and download link
-                print(f'{get_dt()} ' + color('[Book] ', c='LC') + color(str(filename), c='W'))
-
-                # Check: Filename exists in filesystem save location
-                if not os.path.exists(filepath):
-
-                    # Check: Filename exists in books_saved.txt
-                    if filename not in success_downloads:
-
-                        # create a dataclass for the downloader then run the downloader handler
-                        dyn_download_args = DownloadArgs(verbose=_verbose,
-                                                         url=enumerated_result,
-                                                         filename=filename,
-                                                         filepath=filepath,
-                                                         chunk_size=8192,
-                                                         clear_n_chars=50,
-                                                         min_file_size=1024,
-                                                         log=True,
-                                                         success_downloads=_success_downloads,
-                                                         failed_downloads=_failed_downloads,
-                                                         ds_bytes=_ds_bytes,
-                                                         allow_external=_allow_external)
-                        _retry_download = 0
-                        await run_downloader(dyn_download_args)
-
-                    else:
-                        print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File exists in records.', c='W'))
-                else:
-                    print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File already exists in filesystem.', c='W'))
+                # create a dataclass for the downloader then run the downloader handler
+                dyn_download_args = DownloadArgs(verbose=_verbose,
+                                                 url=enumerated_result,
+                                                 filename='./to_be_populated',
+                                                 filepath=filepath,
+                                                 chunk_size=8192,
+                                                 clear_n_chars=50,
+                                                 min_file_size=1024,
+                                                 log=True,
+                                                 success_downloads=_success_downloads,
+                                                 failed_downloads=_failed_downloads,
+                                                 ds_bytes=_ds_bytes,
+                                                 allow_external=_allow_external)
+                _retry_download = 0
+                await run_downloader(dyn_download_args)
 
             i_current_book += 1
 
