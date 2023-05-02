@@ -445,7 +445,7 @@ async def run_downloader(dyn_download_args):
 
 async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_path='./library/',
                _success_downloads=None, _failed_downloads=None, _ds_bytes=False, _verbose=False,
-               _allow_external=False, _results_per_page='50'):
+               _allow_external=False, _results_per_page='50', _column='title'):
 
     global _retry_download
 
@@ -456,7 +456,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
 
         # create URL to scrape using query and exact match bool
         url = str('https://libgen.is/search.php?req=' + str(_search_q).replace(' ', '+'))
-        url = url + f'&open=0&res={str(_results_per_page)}&view=simple&phrase=1&column=title&page='
+        url = url + f'&open=0&res={str(_results_per_page)}&view=simple&phrase=1&column={_column}&page='
         url = url+str(i_current_page)
 
         print(f'{get_dt()} ' + color('[Search] ', c='LC') + color(search_q, c='W'))
@@ -639,6 +639,12 @@ else:
     if '-bytes' in stdin:
         ds_bytes = True
 
+    column = 'title'
+    if '--title' in stdin:
+        column = 'title'
+    elif '--author' in stdin:
+        column = 'author'
+
     """ Use Download Log """
     success_downloads = []
     failed_downloads = []
@@ -668,4 +674,5 @@ else:
     loop.run_until_complete(main(_i_page=i_page, _max_page=max_page, _exact_match=exact_match, _search_q=search_q,
                                  _lib_path=lib_path, _success_downloads=success_downloads,
                                  _failed_downloads=failed_downloads, _ds_bytes=ds_bytes, _verbose=verbose,
-                                 _allow_external=allow_external, _results_per_page=results_per_page))
+                                 _allow_external=allow_external, _results_per_page=results_per_page,
+                                 _column=column))
