@@ -142,21 +142,6 @@ def play():
         time.sleep(1)
 
 
-def make_file_name(_title: str, _url: str) -> str:
-    """ create filenames from book URLs """
-    accept_chars = string.ascii_letters + string.digits + ' ' + '!' + '(' + ')' + '+' + '=' + '<' + '>' + '[' + ']' + '{' + '}'
-    new_filename = ''
-    for char in _title:
-        if char in accept_chars:
-            new_filename += char
-    new_filename = new_filename.strip()
-    new_filename = re.sub('\s+', ' ', new_filename)
-    url_idx = _url.rfind('.')
-    ext = _url[url_idx:]
-    new_filename += ext
-    return new_filename
-
-
 def out_of_disk_space(_chunk_size: int) -> bool:
     total, used, free = shutil.disk_usage("./")
     if free > _chunk_size + 1024:
@@ -177,6 +162,21 @@ def index_preferred_download_link(_urls: list, _preferred_dl_link: str):
     return _link_index
 
 
+def make_file_name(_title: str, _url: str) -> str:
+    """ create filenames from book URLs """
+    accept_chars = string.ascii_letters + string.digits + ' ' + '!' + '(' + ')' + '+' + '=' + '<' + '>' + '[' + ']' + '{' + '}'
+    new_filename = ''
+    for char in _title:
+        if char in accept_chars:
+            new_filename += char
+    new_filename = new_filename.strip()
+    new_filename = re.sub('\s+', ' ', new_filename)
+    url_idx = _url.rfind('.')
+    ext = _url[url_idx:]
+    new_filename += ext
+    return new_filename
+
+
 async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
 
     """
@@ -186,13 +186,12 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
 
     global first_try
 
+    # Default 2: [0] Base URL, [1] Title, [2+] Download links.
+    _link_index = index_preferred_download_link(_urls=dyn_download_args.url,
+                                                _preferred_dl_link=dyn_download_args.preferred_dl_link)
+
     if first_try is True:
         first_try = False
-
-        # Default 2: [0] Base URL, [1] Title, [2+] Download links.
-        _link_index = index_preferred_download_link(_urls=dyn_download_args.url,
-                                                    _preferred_dl_link=dyn_download_args.preferred_dl_link)
-
         # Create filename using filepath and url[_link_index] extension
         dyn_download_args.filename = make_file_name(_title=dyn_download_args.url[1],
                                                     _url=dyn_download_args.url[_link_index])
