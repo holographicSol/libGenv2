@@ -74,7 +74,7 @@ master_timeout = 86400  # 24h
 # set scraper timeout/connection-issue retry time intervals
 timeout_retry = 2
 connection_error_retry = 10
-server_disconnected_error_retry = 5
+server_disconnected_error_retry = 10
 
 # configure options for scraping
 scrape_timeout = aiohttp.ClientTimeout(
@@ -172,7 +172,7 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
 
     """
     This function is currently designed to run synchronously while also having asynchronous features.
-    Make use of async read/write and aiohhttp while also not needing to make this function non-blocking -
+    Make use of faster async read/write and aiohhttp while also not needing to make this function non-blocking -
     (This function runs one instance at a time to prevent being kicked). """
 
     # (Change to use a different link, should align with make_file_name._link_index if changed)
@@ -358,6 +358,7 @@ async def scrape_pages(url: str) -> list:
                 _body = await resp.text(encoding=None, errors='ignore')
                 _soup = await asyncio.to_thread(get_soup, _body=_body)
                 book_urls = await asyncio.to_thread(parse_soup_phase_one, _soup=_soup)
+
     except asyncio.exceptions.TimeoutError:
         print(f'{get_dt()} ' + color(f'[TIMEOUT] Initial scraper timeout. Retrying in {timeout_retry} seconds.', c='Y'))
         await asyncio.sleep(timeout_retry)
@@ -376,7 +377,7 @@ async def scrape_pages(url: str) -> list:
     return book_urls
 
 
-async def enumerate_links(_book_urls: list) -> list:
+async def enumerate_links(_book_urls: list, _verbose: bool) -> list:
     """ scrape for book download links """
 
     try:
@@ -392,27 +393,32 @@ async def enumerate_links(_book_urls: list) -> list:
                         # append together for list alignment later (when creating filenames for current download link)
                         if len(data) >= 3:
                             # when all the lights turn green we have everything we need
-                            print(f'{get_dt()} ' + color(f'[RESPONSE] {str(resp.status)}. {_book_urls}', c='G'))
+                            if _verbose is True:
+                                print(f'{get_dt()} ' + color(f'[RESPONSE] {str(resp.status)}. {_book_urls}', c='G'))
                             return data
                 else:
                     # retry because the response was not 200
-                    print(f'{get_dt()} ' + color(f'[RESPONSE] {str(resp.status)}. Retrying: {_book_urls}', c='Y'))
-                    await enumerate_links(_book_urls)
+                    if _verbose is True:
+                        print(f'{get_dt()} ' + color(f'[RESPONSE] {str(resp.status)}. Retrying: {_book_urls}', c='Y'))
+                    await enumerate_links(_book_urls=_book_urls, _verbose=_verbose)
 
     except asyncio.exceptions.TimeoutError:
-        print(f'{get_dt()} ' + color(f'[TIMEOUT] Enumeration timeout. Retrying in {timeout_retry} seconds.', c='Y'))
+        if _verbose is True:
+            print(f'{get_dt()} ' + color(f'[TIMEOUT] Enumeration timeout. Retrying in {timeout_retry} seconds.', c='Y'))
         await asyncio.sleep(timeout_retry)
-        await enumerate_links(_book_urls)
+        await enumerate_links(_book_urls=_book_urls, _verbose=_verbose)
 
     except aiohttp.ClientConnectorError:
-        print(f'{get_dt()} ' + color(f'[CONNECTION ERROR] Enumeration connection error. Retrying in {connection_error_retry} seconds.', c='Y'))
+        if _verbose is True:
+            print(f'{get_dt()} ' + color(f'[CONNECTION ERROR] Enumeration connection error. Retrying in {connection_error_retry} seconds.', c='Y'))
         await asyncio.sleep(timeout_retry)
-        await enumerate_links(_book_urls)
+        await enumerate_links(_book_urls=_book_urls, _verbose=_verbose)
 
     except aiohttp.ServerDisconnectedError:
-        print(f'{get_dt()} ' + color(f'[SERVER DISCONNECTED ERROR] Retrying in {server_disconnected_error_retry} seconds.', c='Y'))
+        if _verbose is True:
+            print(f'{get_dt()} ' + color(f'[SERVER DISCONNECTED ERROR] Retrying in {server_disconnected_error_retry} seconds.', c='Y'))
         await asyncio.sleep(server_disconnected_error_retry)
-        await enumerate_links(_book_urls)
+        await enumerate_links(_book_urls=_book_urls, _verbose=_verbose)
 
 
 async def run_downloader(dyn_download_args):
@@ -482,7 +488,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
         t0 = time.perf_counter()
         tasks = []
         for result in results:
-            task = asyncio.create_task(enumerate_links(result))
+            task = asyncio.create_task(enumerate_links(_book_urls=result, _verbose=_verbose))
             tasks.append(task)
         enumerated_results = await asyncio.gather(*tasks)
         if _verbose is True:
@@ -514,43 +520,43 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
                 if _verbose is True:
                     print(f'{get_dt()} ' + color('[Handling Enumerated Result] ', c='Y') + color(str(enumerated_result), c='LC'))
 
-                    # Check: Library category directory exists
-                    if not os.path.exists(lib_path + '/' + _search_q):
-                        os.makedirs(lib_path + '/' + _search_q, exist_ok=True)
+                # Check: Library category directory exists
+                if not os.path.exists(lib_path + '/' + _search_q):
+                    os.makedirs(lib_path + '/' + _search_q, exist_ok=True)
 
-                    # Make filename from URL
-                    filename = make_file_name(_enumerated_result=enumerated_result)
-                    filepath = lib_path + '/' + _search_q + '/' + filename
+                # Make filename from URL
+                filename = make_file_name(_enumerated_result=enumerated_result)
+                filepath = lib_path + '/' + _search_q + '/' + filename
 
-                    # Output: Filename and download link
-                    print(f'{get_dt()} ' + color('[Book] ', c='LC') + color(str(filename), c='W'))
+                # Output: Filename and download link
+                print(f'{get_dt()} ' + color('[Book] ', c='LC') + color(str(filename), c='W'))
 
-                    # Check: Filename exists in filesystem save location
-                    if not os.path.exists(filepath):
+                # Check: Filename exists in filesystem save location
+                if not os.path.exists(filepath):
 
-                        # Check: Filename exists in books_saved.txt
-                        if filename not in success_downloads:
+                    # Check: Filename exists in books_saved.txt
+                    if filename not in success_downloads:
 
-                            # create a dataclass for the downloader then run the downloader handler
-                            dyn_download_args = DownloadArgs(verbose=_verbose,
-                                                             url=enumerated_result,
-                                                             filename=filename,
-                                                             filepath=filepath,
-                                                             chunk_size=8192,
-                                                             clear_n_chars=50,
-                                                             min_file_size=1024,
-                                                             log=True,
-                                                             success_downloads=_success_downloads,
-                                                             failed_downloads=_failed_downloads,
-                                                             ds_bytes=_ds_bytes,
-                                                             allow_external=_allow_external)
-                            _retry_download = 0
-                            await run_downloader(dyn_download_args)
+                        # create a dataclass for the downloader then run the downloader handler
+                        dyn_download_args = DownloadArgs(verbose=_verbose,
+                                                         url=enumerated_result,
+                                                         filename=filename,
+                                                         filepath=filepath,
+                                                         chunk_size=8192,
+                                                         clear_n_chars=50,
+                                                         min_file_size=1024,
+                                                         log=True,
+                                                         success_downloads=_success_downloads,
+                                                         failed_downloads=_failed_downloads,
+                                                         ds_bytes=_ds_bytes,
+                                                         allow_external=_allow_external)
+                        _retry_download = 0
+                        await run_downloader(dyn_download_args)
 
-                        else:
-                            print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File exists in records.', c='W'))
                     else:
-                        print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File already exists in filesystem.', c='W'))
+                        print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File exists in records.', c='W'))
+                else:
+                    print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File already exists in filesystem.', c='W'))
 
             i_current_book += 1
 
