@@ -318,14 +318,12 @@ def parse_soup_phase_two(_soup: bs4.BeautifulSoup, _book_urls: list) -> list:
             title = title[7]
             title = title[2:]
             title = title[:-2]
-            _book_urls.append(title)
-            break
+            if title not in _book_urls:
+                _book_urls.append(title)
+                break
 
     for link in _soup.find_all('a'):
         href = link.get('href')
-        # Check: Is .pdf, limit number of download links appended to the list. (Increase limit to see more links).
-        # if str(href).endswith('.pdf') and len(_book_urls) < 4:
-        #     _book_urls.append(href)
         if str(href).endswith(tuple(ebook_ext.ebook_extensions_slim)):
             _book_urls.append(str(href))
 
@@ -361,24 +359,30 @@ async def enumerate_links(_book_urls: list) -> list:
         _headers = user_agent()
         async with aiohttp.ClientSession(headers=_headers, **client_args) as session:
             async with session.get(_book_urls[0]) as resp:
-                _body = await resp.text(encoding=None, errors='ignore')
-                _soup = await asyncio.to_thread(get_soup, _body=_body)
-                if _soup:
-                    data = await asyncio.to_thread(parse_soup_phase_two, _soup=_soup, _book_urls=_book_urls)
-                    # append together for list alignment later (when creating filenames for current download link)
-                    return data
-                    # _book_urls.append(data)
+                # print(resp.status)
+                if resp.status == 200:
+                    _body = await resp.text(encoding=None, errors='ignore')
+                    _soup = await asyncio.to_thread(get_soup, _body=_body)
+                    if _soup:
+                        data = await asyncio.to_thread(parse_soup_phase_two, _soup=_soup, _book_urls=_book_urls)
+                        # append together for list alignment later (when creating filenames for current download link)
+                        if len(data) >= 3:
+                            print(f'{get_dt()} ' + color(f'[RESPONSE] {str(resp.status)}. {_book_urls}', c='G'))
+                            return data
+                else:
+                    print(f'{get_dt()} ' + color(f'[RESPONSE] {str(resp.status)}. Retrying: {_book_urls}', c='Y'))
+                    await enumerate_links(_book_urls)
 
     except asyncio.exceptions.TimeoutError:
         print(f'{get_dt()} ' + color(f'[TIMEOUT] Enumeration timeout. Retrying in {timeout_retry} seconds.', c='Y'))
         await asyncio.sleep(timeout_retry)
-        await enumerate_links(_book_urls[0])
+        await enumerate_links(_book_urls)
 
     except aiohttp.ClientConnectorError:
         print(f'{get_dt()} ' + color(f'[CONNECTION ERROR] Enumeration connection error. Retrying in {connection_error_retry} seconds.', c='Y'))
         await asyncio.sleep(timeout_retry)
-        await enumerate_links(_book_urls[0])
-    return _book_urls
+        await enumerate_links(_book_urls)
+    # return _book_urls
 
 
 async def run_downlaoder(dyn_download_args):
@@ -422,6 +426,8 @@ async def run_downlaoder(dyn_download_args):
 async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_path='./library/',
                _success_downloads=None, _failed_downloads=None, _ds_bytes=False, _verbose=False,
                _allow_external=False, _results_per_page='50'):
+
+    global _retry_download
 
     # Phase One: Setup async scaper to get book URLs (one page at a time to prevent getting kicked from the server)
     if _success_downloads is None:
@@ -478,6 +484,12 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
         print(f'{get_dt()} ' + color('[Enumerated Results] ', c='LC') + f'{len(enumerated_results)}')
         print(f'{get_dt()} ' + color('[Phase Two Time] ', c='LC') + f'{time.perf_counter()-t0}')
 
+        # uncomment to see what may have been missed
+        # for enumerated_result in enumerated_results:
+        #     if len(enumerated_result) < 3:
+        #         print(enumerated_result)
+        # break
+
         # Current book on current page
         i_current_book = 0
 
@@ -522,7 +534,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
                                                              failed_downloads=_failed_downloads,
                                                              ds_bytes=_ds_bytes,
                                                              allow_external=_allow_external)
-
+                            _retry_download = 0
                             await run_downlaoder(dyn_download_args)
 
                         else:
@@ -530,7 +542,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
                     else:
                         print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File already exists in filesystem.', c='W'))
 
-                i_current_book += 1
+            i_current_book += 1
 
         print('')
         print('')
