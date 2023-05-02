@@ -14,4 +14,4 @@
 Developed and written by Benjamin Jack Cullen.
 
 
-Todo: Increase yield per page.
+Should be very compaitible with many different ebook file formats.
