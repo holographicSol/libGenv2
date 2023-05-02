@@ -63,7 +63,7 @@ class DownloadArgs:
     success_downloads: list
     failed_downloads: list
     ds_bytes: bool
-    allow_external: bool
+    preferred_dl_link: str
 
 
 _retry_download = int(0)
@@ -164,6 +164,17 @@ def out_of_disk_space(_chunk_size: int) -> bool:
         return True
 
 
+def index_preferred_download_link(_urls: list, _preferred_dl_link: str):
+    _link_index = 2
+    i_url = 0
+    for url in _urls:
+        if str(_preferred_dl_link).strip() in str(url).strip() and i_url >= 2:
+            _link_index = i_url
+            break
+        i_url += 1
+    return _link_index
+
+
 async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
 
     """
@@ -172,12 +183,16 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
     (This function runs one instance at a time to prevent being kicked). """
 
     # Default 2: [0] Base URL, [1] Title, [2+] Download links.
-    _link_index = 2
+    _link_index = index_preferred_download_link(_urls=dyn_download_args.url,
+                                                _preferred_dl_link=dyn_download_args.preferred_dl_link)
 
     # Create filename using filepath and url[_link_index] extension
     dyn_download_args.filename = make_file_name(_title=dyn_download_args.url[1],
                                                 _url=dyn_download_args.url[_link_index])
     dyn_download_args.filepath = dyn_download_args.filepath + dyn_download_args.filename
+
+    # Output: Link index
+    print(f'{get_dt()} ' + color('[Link Index] ', c='LC') + color(str(_link_index), c='W'))
 
     # Output: Filename and download link
     print(f'{get_dt()} ' + color('[Book] ', c='LC') + color(str(dyn_download_args.filename), c='W'))
@@ -459,7 +474,7 @@ async def run_downloader(dyn_download_args):
 
 async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_path='./library/',
                _success_downloads=None, _failed_downloads=None, _ds_bytes=False, _verbose=False,
-               _allow_external=False, _results_per_page='50', _column='title'):
+               _results_per_page='50', _column='title', _preferred_dl_link=''):
 
     global _retry_download
 
@@ -564,7 +579,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
                                                  success_downloads=_success_downloads,
                                                  failed_downloads=_failed_downloads,
                                                  ds_bytes=_ds_bytes,
-                                                 allow_external=_allow_external)
+                                                 preferred_dl_link=_preferred_dl_link)
                 _retry_download = 0
                 await run_downloader(dyn_download_args)
 
@@ -643,6 +658,12 @@ else:
         column = 'title'
     elif '--author' in stdin:
         column = 'author'
+    
+    # Be polite: please use the --cloudflare argument to be polite to libgen servers (and it may be faster).
+    preferred_dl_link = 'http://62.182.86.140'
+    if '--cloudflare' in stdin:
+        preferred_dl_link = 'https://cloudflare'
+    
 
     """ Use Download Log """
     success_downloads = []
@@ -666,12 +687,9 @@ else:
                     failed_downloads.append(line)
         fo.close()
 
-    """ Allow external links to be followed """
-    allow_external = False
-
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main(_i_page=i_page, _max_page=max_page, _exact_match=exact_match, _search_q=search_q,
                                  _lib_path=lib_path, _success_downloads=success_downloads,
                                  _failed_downloads=failed_downloads, _ds_bytes=ds_bytes, _verbose=verbose,
-                                 _allow_external=allow_external, _results_per_page=results_per_page,
-                                 _column=column))
+                                 _results_per_page=results_per_page,
+                                 _column=column, _preferred_dl_link=preferred_dl_link))
