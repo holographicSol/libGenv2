@@ -391,9 +391,11 @@ async def enumerate_links(_book_urls: list) -> list:
                         data = await asyncio.to_thread(parse_soup_phase_two, _soup=_soup, _book_urls=_book_urls)
                         # append together for list alignment later (when creating filenames for current download link)
                         if len(data) >= 3:
+                            # when all the lights turn green we have everything we need
                             print(f'{get_dt()} ' + color(f'[RESPONSE] {str(resp.status)}. {_book_urls}', c='G'))
                             return data
                 else:
+                    # retry because the response was not 200
                     print(f'{get_dt()} ' + color(f'[RESPONSE] {str(resp.status)}. Retrying: {_book_urls}', c='Y'))
                     await enumerate_links(_book_urls)
 
