@@ -413,7 +413,7 @@ async def run_downlaoder(dyn_download_args):
 
 async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_path='./library/',
                _success_downloads=None, _failed_downloads=None, _ds_bytes=False, _verbose=False,
-               _allow_external=False, _results_per_page=25):
+               _allow_external=False, _results_per_page='50'):
 
     # Phase One: Setup async scaper to get book URLs (one page at a time to prevent getting kicked from the server)
     if _success_downloads is None:
