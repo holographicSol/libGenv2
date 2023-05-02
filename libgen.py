@@ -18,6 +18,7 @@ import aiofiles.os
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 from dataclasses import dataclass
+import ebook_ext
 import libgen_help
 
 # Platform check (Be compatible with Termux on Android, skip Pyqt5 import)
@@ -139,16 +140,18 @@ def play():
         time.sleep(1)
 
 
-def make_file_name(_filename: str) -> str:
+def make_file_name(_enumerated_result: list) -> str:
     """ create filenames from book URLs """
     accept_chars = string.ascii_letters + string.digits + ' ' + '!' + '(' + ')' + '+' + '=' + '<' + '>' + '?' + '[' + ']' + '{' + '}'
     new_filename = ''
-    for char in _filename:
+    for char in _enumerated_result[1]:
         if char in accept_chars:
             new_filename += char
     new_filename = new_filename.strip()
     new_filename = re.sub('\s+', ' ', new_filename)
-    new_filename += '.pdf'
+    url_idx = _enumerated_result[2].rfind('.')
+    ext = _enumerated_result[2][url_idx:]
+    new_filename += ext
     return new_filename
 
 
@@ -167,9 +170,8 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
     Make use of async read/write and aiohhttp while also not needing to make this function non-blocking -
     (This function runs one instance at a time to prevent being kicked). """
 
-    # Index 3 is typically cloudflare.
-    # (Change to use a different link, see parse_soup_phase_two() for increasing number of links in the link list)
-    _link_index = 3
+    # (Change to use a different link, should align with filename if changed)
+    _link_index = 2
 
     _chunk_size = dyn_download_args.chunk_size
     print(f'{get_dt()} ' + color('[URL] ', c='LC') + color(str(dyn_download_args.url[_link_index]), c='W'))
@@ -318,8 +320,10 @@ def parse_soup_phase_two(_soup: bs4.BeautifulSoup, _book_urls: list) -> list:
     for link in _soup.find_all('a'):
         href = link.get('href')
         # Check: Is .pdf, limit number of download links appended to the list. (Increase limit to see more links).
-        if str(href).endswith('.pdf') and len(_book_urls) < 4:
-            _book_urls.append(href)
+        # if str(href).endswith('.pdf') and len(_book_urls) < 4:
+        #     _book_urls.append(href)
+        if str(href).endswith(tuple(ebook_ext.ebook_extensions_slim)):
+            _book_urls.append(str(href))
 
     return _book_urls
 
@@ -489,7 +493,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
                         os.makedirs(lib_path + '/' + _search_q, exist_ok=True)
 
                     # Make filename from URL
-                    filename = make_file_name(_filename=enumerated_result[1])
+                    filename = make_file_name(_enumerated_result=enumerated_result)
                     filepath = lib_path + '/' + _search_q + '/' + filename
 
                     # Output: Filename and download link
