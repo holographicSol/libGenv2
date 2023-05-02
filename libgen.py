@@ -180,47 +180,58 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
     _chunk_size = dyn_download_args.chunk_size
     print(f'{get_dt()} ' + color('[URL] ', c='LC') + color(str(dyn_download_args.url[_link_index]), c='W'))
 
-    async with aiohttp.ClientSession(headers=user_agent(), **client_args_download) as session:
-        async with session.get(dyn_download_args.url[_link_index]) as resp:
-            if dyn_download_args.verbose is True:
-                print(f'{get_dt()} ' + color('[Response] ', c='Y') + color(str(resp.status), c='LC'))
-            if resp.status == 200:
+    try:
+        async with aiohttp.ClientSession(headers=user_agent(), **client_args_download) as session:
+            async with session.get(dyn_download_args.url[_link_index]) as resp:
+                if dyn_download_args.verbose is True:
+                    print(f'{get_dt()} ' + color('[Response] ', c='Y') + color(str(resp.status), c='LC'))
+                if resp.status == 200:
 
-                # keep track of how many bytes have been downloaded
-                _sz = int(0)
+                    # keep track of how many bytes have been downloaded
+                    _sz = int(0)
 
-                # open file to write the bytes into
-                async with aiofiles.open(dyn_download_args.filepath+'.tmp', mode='wb') as handle:
+                    # open file to write the bytes into
+                    async with aiofiles.open(dyn_download_args.filepath+'.tmp', mode='wb') as handle:
 
-                    # iterate over chunks of bytes in the response
-                    async for chunk in resp.content.iter_chunked(_chunk_size):
+                        # iterate over chunks of bytes in the response
+                        async for chunk in resp.content.iter_chunked(_chunk_size):
 
-                        # storage check:
-                        if await asyncio.to_thread(out_of_disk_space, _chunk_size=dyn_download_args.chunk_size) is False:
+                            # storage check:
+                            if await asyncio.to_thread(out_of_disk_space, _chunk_size=dyn_download_args.chunk_size) is False:
 
-                            # write chunk to the temporary file
-                            await handle.write(chunk)
+                                # write chunk to the temporary file
+                                await handle.write(chunk)
 
-                            # output: display download progress
-                            _sz += int(len(chunk))
-                            print(' ' * dyn_download_args.clear_n_chars, end='\r', flush=True)
-                            if dyn_download_args.ds_bytes is False:
-                                print(f'[DOWNLOADING] {str(convert_bytes(_sz))}', end='\r', flush=True)
+                                # output: display download progress
+                                _sz += int(len(chunk))
+                                print(' ' * dyn_download_args.clear_n_chars, end='\r', flush=True)
+                                if dyn_download_args.ds_bytes is False:
+                                    print(f'[DOWNLOADING] {str(convert_bytes(_sz))}', end='\r', flush=True)
+                                else:
+                                    print(f'[DOWNLOADING] {str(_sz)} bytes', end='\r', flush=True)
                             else:
-                                print(f'[DOWNLOADING] {str(_sz)} bytes', end='\r', flush=True)
-                        else:
-                            # output: out of disk space
-                            print(' ' * dyn_download_args.clear_n_chars, end='\r', flush=True)
-                            print(str(color(s='[WARNING] OUT OF DISK SPACE! Download terminated.', c='Y')), end='\r', flush=True)
+                                # output: out of disk space
+                                print(' ' * dyn_download_args.clear_n_chars, end='\r', flush=True)
+                                print(str(color(s='[WARNING] OUT OF DISK SPACE! Download terminated.', c='Y')), end='\r', flush=True)
 
-                            # delete temporary file if exists
-                            if os.path.exists(dyn_download_args.filepath + '.tmp'):
-                                await handle.close()
-                                await aiofiles.os.remove(dyn_download_args.filepath + '.tmp')
-                            # exit.
-                            print('\n\n')
-                            exit(0)
-                await handle.close()
+                                # delete temporary file if exists
+                                if os.path.exists(dyn_download_args.filepath + '.tmp'):
+                                    await handle.close()
+                                    await aiofiles.os.remove(dyn_download_args.filepath + '.tmp')
+                                # exit.
+                                print('\n\n')
+                                exit(0)
+                    await handle.close()
+
+    except asyncio.exceptions.TimeoutError:
+        print(f'{get_dt()} ' + color(f'[TIMEOUT] Enumeration timeout. Retrying in {timeout_retry} seconds.', c='Y'))
+        await asyncio.sleep(timeout_retry)
+        await download_file(dyn_download_args)
+
+    except aiohttp.ClientConnectorError:
+        print(f'{get_dt()} ' + color(f'[CONNECTION ERROR] Enumeration connection error. Retrying in {connection_error_retry} seconds.', c='Y'))
+        await asyncio.sleep(connection_error_retry)
+        await download_file(dyn_download_args)
 
     if os.path.exists(dyn_download_args.filepath+'.tmp'):
 
@@ -318,14 +329,17 @@ def parse_soup_phase_two(_soup: bs4.BeautifulSoup, _book_urls: list) -> list:
             title = title[7]
             title = title[2:]
             title = title[:-2]
+            # filter download title
             if title not in _book_urls:
                 _book_urls.append(title)
                 break
 
     for link in _soup.find_all('a'):
         href = link.get('href')
+        # filter download links
         if str(href).endswith(tuple(ebook_ext.ebook_extensions_slim)):
-            _book_urls.append(str(href))
+            if str(href) not in _book_urls:
+                _book_urls.append(str(href))
 
     return _book_urls
 
@@ -385,7 +399,7 @@ async def enumerate_links(_book_urls: list) -> list:
     # return _book_urls
 
 
-async def run_downlaoder(dyn_download_args):
+async def run_downloader(dyn_download_args):
     global _retry_download
 
     try:
@@ -408,10 +422,15 @@ async def run_downlaoder(dyn_download_args):
         # Output: any issues
         print(f'{get_dt()} ' + color(f'[Exception.download] {e}', c='R'))
 
-        if _retry_download <= 3:
-            print(f'{get_dt()} ' + color(f'[Retrying] {_retry_download+1}/3', c='Y'))
-            _retry_download += 1
-            await run_downlaoder(dyn_download_args)
+        if 'Server disconnected' in str(e):
+            print(f'{get_dt()} ' + color(f'[Retrying] Server disconnected and has limited connections at any one time.', c='Y'))
+            await run_downloader(dyn_download_args)
+
+        # else:
+        #     if _retry_download <= 10:
+        #         print(f'{get_dt()} ' + color(f'[Retrying] {_retry_download+1}/3', c='Y'))
+        #         _retry_download += 1
+        #         await run_downloader(dyn_download_args)
 
         print(f'{get_dt()} ' + color('[Download Failed]', c='R'))
 
@@ -535,7 +554,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
                                                              ds_bytes=_ds_bytes,
                                                              allow_external=_allow_external)
                             _retry_download = 0
-                            await run_downlaoder(dyn_download_args)
+                            await run_downloader(dyn_download_args)
 
                         else:
                             print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File exists in records.', c='W'))
