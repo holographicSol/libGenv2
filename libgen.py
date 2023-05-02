@@ -66,6 +66,7 @@ class DownloadArgs:
     preferred_dl_link: str
 
 
+first_try = True
 _retry_download = int(0)
 
 # set master timeout
@@ -183,14 +184,19 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
     Make use of faster async read/write and aiohhttp while also not needing to make this function non-blocking -
     (This function runs one instance at a time to prevent being kicked). """
 
-    # Default 2: [0] Base URL, [1] Title, [2+] Download links.
-    _link_index = index_preferred_download_link(_urls=dyn_download_args.url,
-                                                _preferred_dl_link=dyn_download_args.preferred_dl_link)
+    global first_try
+    
+    if first_try is True:
+        first_try = False
 
-    # Create filename using filepath and url[_link_index] extension
-    dyn_download_args.filename = make_file_name(_title=dyn_download_args.url[1],
-                                                _url=dyn_download_args.url[_link_index])
-    dyn_download_args.filepath = dyn_download_args.filepath + dyn_download_args.filename
+        # Default 2: [0] Base URL, [1] Title, [2+] Download links.
+        _link_index = index_preferred_download_link(_urls=dyn_download_args.url,
+                                                    _preferred_dl_link=dyn_download_args.preferred_dl_link)
+
+        # Create filename using filepath and url[_link_index] extension
+        dyn_download_args.filename = make_file_name(_title=dyn_download_args.url[1],
+                                                    _url=dyn_download_args.url[_link_index])
+        dyn_download_args.filepath = dyn_download_args.filepath + dyn_download_args.filename
 
     # Output: Link index
     print(f'{get_dt()} ' + color('[Link Index] ', c='LC') + color(str(_link_index), c='W'))
@@ -477,7 +483,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
                _success_downloads=None, _failed_downloads=None, _ds_bytes=False, _verbose=False,
                _results_per_page='50', _column='title', _preferred_dl_link=''):
 
-    global _retry_download
+    global _retry_download, first_try
 
     # Phase One: Setup async scaper to get book URLs (one page at a time to prevent getting kicked from the server)
     if _success_downloads is None:
@@ -582,6 +588,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
                                                  ds_bytes=_ds_bytes,
                                                  preferred_dl_link=_preferred_dl_link)
                 _retry_download = 0
+                first_try = True
                 await run_downloader(dyn_download_args)
 
             i_current_book += 1
