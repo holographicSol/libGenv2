@@ -185,7 +185,7 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
     (This function runs one instance at a time to prevent being kicked). """
 
     global first_try
-    
+
     if first_try is True:
         first_try = False
 
@@ -402,12 +402,12 @@ async def scrape_pages(url: str) -> list:
     except aiohttp.ClientConnectorError:
         print(f'{get_dt()} ' + color(f'[CONNECTION ERROR] Initial scraper connection error. Retrying in {connection_error_retry} seconds.', c='Y'))
         await asyncio.sleep(timeout_retry)
-        await enumerate_links(url)
+        await scrape_pages(url)
 
     except aiohttp.ServerDisconnectedError:
         print(f'{get_dt()} ' + color(f'[SERVER DISCONNECTED ERROR] Retrying in {server_disconnected_error_retry} seconds.', c='Y'))
         await asyncio.sleep(server_disconnected_error_retry)
-        await enumerate_links(url)
+        await scrape_pages(url)
 
     return book_urls
 
