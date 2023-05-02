@@ -149,8 +149,12 @@ def make_file_name(_enumerated_result: list) -> str:
             new_filename += char
     new_filename = new_filename.strip()
     new_filename = re.sub('\s+', ' ', new_filename)
-    url_idx = _enumerated_result[2].rfind('.')
-    ext = _enumerated_result[2][url_idx:]
+
+    # (Change to use a different link, should align with download_file._link_index if changed)
+    _link_index = 2
+
+    url_idx = _enumerated_result[_link_index].rfind('.')
+    ext = _enumerated_result[_link_index][url_idx:]
     new_filename += ext
     return new_filename
 
@@ -170,7 +174,7 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
     Make use of async read/write and aiohhttp while also not needing to make this function non-blocking -
     (This function runs one instance at a time to prevent being kicked). """
 
-    # (Change to use a different link, should align with filename if changed)
+    # (Change to use a different link, should align with make_file_name._link_index if changed)
     _link_index = 2
 
     _chunk_size = dyn_download_args.chunk_size
