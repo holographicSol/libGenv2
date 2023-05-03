@@ -186,7 +186,7 @@ def make_file_name(_title: str, _url: str, _filepath: str) -> str:
                   'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
                   'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9']
     if new_filename in win_res_nm:
-        rand_string = ''.join(random.choice(string.digits) for char in range(32))
+        rand_string = ''.join(random.choice(string.digits) for digi in range(32))
         new_filename += '_'+rand_string
 
     # Make filename length < max filename length limit
