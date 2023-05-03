@@ -162,18 +162,33 @@ def index_preferred_download_link(_urls: list, _preferred_dl_link: str):
     return _link_index
 
 
-def make_file_name(_title: str, _url: str) -> str:
+def make_file_name(_title: str, _url: str, _filepath: str) -> str:
     """ create filenames from book URLs """
+
+    # Use filepath safe characters
     accept_chars = string.ascii_letters + string.digits + ' ' + '!' + '(' + ')' + '+' + '=' + '<' + '>' + '[' + ']' + '{' + '}'
     new_filename = ''
     for char in _title:
         if char in accept_chars:
             new_filename += char
+
+    # Use only single spaces
     new_filename = new_filename.strip()
     new_filename = re.sub('\s+', ' ', new_filename)
+
+    # Find URL suffix
     url_idx = _url.rfind('.')
     ext = _url[url_idx:]
+
+    # Make filename length < max filename length limit
+    _len_filename = len(_filepath) + len(new_filename) + len(ext)
+    if _len_filename >= 255:
+        new_filename = new_filename[:250-len(_filepath)-len(ext)]
+        new_filename = new_filename + '...'
+
+    # Append filename suffix to filename
     new_filename += ext
+
     return new_filename
 
 
@@ -188,7 +203,7 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
     print(f'{get_dt()} ' + color('[Link Index] ', c='LC') + color(str(dyn_download_args.link_index), c='W'))
 
     # Output: Filename and download link
-    print(f'{get_dt()} ' + color('[Book] ', c='LC') + color(str(dyn_download_args.filename), c='W'))
+    print(f'{get_dt()} ' + color('[Book] ', c='LC') + color(str(dyn_download_args.filename), c='LG'))
 
     _chunk_size = dyn_download_args.chunk_size
     print(f'{get_dt()} ' + color('[URL] ', c='LC') + color(str(dyn_download_args.url[dyn_download_args.link_index]), c='W'))
@@ -562,11 +577,14 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
                 _link_index = index_preferred_download_link(_urls=enumerated_result,
                                                             _preferred_dl_link=_preferred_dl_link)
 
+                filepath = lib_path + '/' + _search_q + '/'
+
                 # Create filename using filepath and url[_link_index] extension
                 filename = make_file_name(_title=enumerated_result[1],
-                                          _url=enumerated_result[_link_index])
+                                          _url=enumerated_result[_link_index],
+                                          _filepath=filepath)
 
-                filepath = lib_path + '/' + _search_q + '/' + filename
+                filepath = filepath + filename
 
                 # create a dataclass for the downloader then run the downloader handler
                 dyn_download_args = DownloadArgs(verbose=_verbose,
