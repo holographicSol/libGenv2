@@ -387,7 +387,7 @@ def parse_soup_phase_two(_soup: bs4.BeautifulSoup, _book_urls: list) -> list:
     for link in _soup.find_all('a'):
         href = link.get('href')
         # filter download links
-        if str(href).endswith(tuple(ebook_ext.ebook_extensions_slim)):
+        if str(href).endswith(tuple(ebook_ext.ebook_extensions_1)):
             if str(href) not in _book_urls:
                 _book_urls.append(str(href))
     return _book_urls
