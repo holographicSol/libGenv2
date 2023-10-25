@@ -43,6 +43,10 @@ if os.name in ('nt', 'dos'):
 # Colorama requires initialization before use
 colorama.init()
 
+# Global mirrors
+mirror_search = 'https://libgen.is'
+mirror_phase_one = 'http://library.lol'
+
 
 # return headers with a random user agent
 def user_agent():
@@ -363,7 +367,7 @@ def get_soup(_body: str) -> bs4.BeautifulSoup:
 def parse_soup_phase_one(_soup: bs4.BeautifulSoup) -> list:
     """ parse soup from phase one (parse for book URLs) """
     book_urls = []
-    check_0 = ['http://library.lol/main/']
+    check_0 = [str(mirror_phase_one) + '/main/']
     for link in _soup.find_all('a'):
         href = link.get('href')
         if str(href).startswith(tuple(check_0)):
@@ -501,7 +505,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
     for i_current_page in range(i_page, _max_page):
 
         # create URL to scrape using query and exact match bool
-        url = str('https://libgen.is/search.php?req=' + str(_search_q).replace(' ', '+'))
+        url = str(str(mirror_search) + '/search.php?req=' + str(_search_q).replace(' ', '+'))
         url = url + f'&open=0&res={str(_results_per_page)}&view=simple&phrase=1&column={_column}&page='
         url = url+str(i_current_page)
 
@@ -692,7 +696,14 @@ else:
     preferred_dl_link = 'none_specified'
     if '--cloudflare' in stdin:
         preferred_dl_link = 'https://cloudflare'
-    
+
+    if '--search-mirror' in stdin:
+        idx = stdin.index('--search-mirror') + 1
+        mirror_search = stdin[idx]
+
+    if '--phase-one-mirror' in stdin:
+        idx = stdin.index('--phase-one-mirror') + 1
+        mirror_phase_one = stdin[idx]
 
     """ Use Download Log """
     success_downloads = []
