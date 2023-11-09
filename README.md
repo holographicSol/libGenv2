@@ -9,7 +9,7 @@
     --author          Author Search      Search for author -k.
     --cloudflare      Use Cloudflare     Be Polite. Use cloudflare download links when available.
     --search-mirror   Search Mirror      Set initial search mirror. (Default: https://libgen.is)
-    --search-mirror   Phase One Mirror   Set phase one mirror. (Default: http://library.lol)
+    --phase-one-mirror   Phase One Mirror   Set phase one mirror. (Default: http://library.lol)
     --cloudflare      Use Cloudflare     Be Polite. Use cloudflare download links when available.
     --no-mem          No Memory          Do not use books_saved.txt when ascertaining if file will be downloaded.
     -v                Verbosity          Increase verbosity.
