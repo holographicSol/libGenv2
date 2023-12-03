@@ -1,4 +1,9 @@
-""" Written by Benjamin Jack Cullen """
+""" Written by Benjamin Jack Cullen
+
+Compile using Python 3.11.
+
+"""
+
 import os
 import sys
 import re
@@ -21,6 +26,7 @@ from fake_useragent import UserAgent
 from dataclasses import dataclass
 import ebook_ext
 import libgen_help
+import httprci
 
 # Platform check (Be compatible with Termux on Android, skip Pyqt5 import)
 player_default = object
@@ -81,6 +87,7 @@ master_timeout = 86400  # 24h
 timeout_retry = 2
 connection_error_retry = 10
 server_disconnected_error_retry = 10
+client_payload_error_retry = 10
 
 # configure options for scraping
 scrape_timeout = aiohttp.ClientTimeout(
@@ -229,10 +236,10 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
 
             try:
                 async with aiohttp.ClientSession(headers=user_agent(), **client_args_download) as session:
-                    async with session.get(dyn_download_args.url[dyn_download_args.link_index]) as resp:
+                    async with session.get(dyn_download_args.url[dyn_download_args.link_index]) as r:
                         if dyn_download_args.verbose is True:
-                            print(f'{get_dt()} ' + color('[Response] ', c='Y') + color(str(resp.status), c='LC'))
-                        if resp.status == 200:
+                            print(f'{get_dt()} ' + color('[Response] ', c='Y') + f'{httprci.get(r.status, int(3))}')
+                        if r.status == 200:
 
                             # keep track of how many bytes have been downloaded
                             _sz = int(0)
@@ -241,7 +248,7 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                             async with aiofiles.open(dyn_download_args.filepath+'.tmp', mode='wb') as handle:
 
                                 # iterate over chunks of bytes in the response
-                                async for chunk in resp.content.iter_chunked(_chunk_size):
+                                async for chunk in r.content.iter_chunked(_chunk_size):
 
                                     # storage check:
                                     if await asyncio.to_thread(out_of_disk_space, _chunk_size=dyn_download_args.chunk_size) is False:
@@ -271,26 +278,35 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                             await handle.close()
 
             except asyncio.exceptions.TimeoutError:
-                print(f'{get_dt()} ' + color(f'[TIMEOUT] Enumeration timeout. Retrying in {timeout_retry} seconds.', c='Y'))
+                print(f'{get_dt()} ' + color(f'[TimeoutError] Enumeration timeout. Retrying in {timeout_retry} seconds.', c='Y'))
                 await asyncio.sleep(timeout_retry)
                 await download_file(dyn_download_args)
 
             except aiohttp.ClientConnectorError:
-                print(f'{get_dt()} ' + color(f'[CONNECTION ERROR] Enumeration connection error. Retrying in {connection_error_retry} seconds.', c='Y'))
+                print(f'{get_dt()} ' + color(f'[ClientConnectorError] Enumeration connection error. Retrying in {connection_error_retry} seconds.', c='Y'))
                 await asyncio.sleep(connection_error_retry)
                 await download_file(dyn_download_args)
 
             except aiohttp.ServerDisconnectedError:
-                print(f'{get_dt()} ' + color(f'[SERVER DISCONNECTED ERROR] Retrying in {server_disconnected_error_retry} seconds.', c='Y'))
+                print(f'{get_dt()} ' + color(f'[ServerDisconnectedError] Retrying in {server_disconnected_error_retry} seconds.', c='Y'))
                 await asyncio.sleep(server_disconnected_error_retry)
+                await download_file(dyn_download_args)
+
+            except aiohttp.ClientPayloadError:
+                print(f'{get_dt()} ' + color(f'[ClientPayloadError] Retrying in {client_payload_error_retry} seconds.', c='Y'))
+                await asyncio.sleep(client_payload_error_retry)
                 await download_file(dyn_download_args)
 
             if os.path.exists(dyn_download_args.filepath+'.tmp'):
 
-                # check: temporary file worth keeping? (<1024 bytes would be less than 1024 characters, reduce this if needed)
-                # - sometimes file exists on a different server, this software does not intentionally follow any external links,
-                # - if the file is in another place then a very small file may be downloaded because ultimately the file we
-                #   wanted was not present and will then be detected and deleted.
+                """
+                CHECK: temporary file worth keeping? (<1024 bytes would be less than 1024 characters, reduce this if
+                       needed).
+                       Sometimes file exists on a different server, this software does not intentionally follow any
+                       external links, if the file is in another place then a very small file may be downloaded because
+                       ultimately the file we wanted was not present and will then be detected and deleted.
+                  """
+
                 if os.path.getsize(dyn_download_args.filepath+'.tmp') >= dyn_download_args.min_file_size:
 
                     if dyn_download_args.verbose is True:
@@ -299,7 +315,7 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                     # create final download file from temporary file
                     await aiofiles.os.replace(dyn_download_args.filepath+'.tmp', dyn_download_args.filepath)
 
-                    # display download success (does not guarantee a usable file, some checks are performed before this point)
+                    # display download success (doesn't guarantee a usable file, checks are performed before this point)
                     if os.path.exists(dyn_download_args.filepath):
 
                         if dyn_download_args.verbose is True:
@@ -313,7 +329,7 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                             if not os.path.exists(dyn_download_args.filepath + '.tmp'):
                                 print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Removed temporary file.', c='LC'))
 
-                        # add book to saved list. multi-drive/system memory (continue where you left off on another disk/sys)
+                        # add book to saved list. multi-drive/system memory (continue where you left off)
                         if dyn_download_args.log is True:
                             if dyn_download_args.filename not in success_downloads:
                                 success_downloads.append(dyn_download_args.filename)
@@ -403,24 +419,29 @@ async def scrape_pages(url: str) -> list:
     try:
         _headers = user_agent()
         async with aiohttp.ClientSession(headers=_headers, **client_args) as session:
-            async with session.get(url) as resp:
-                _body = await resp.text(encoding=None, errors='ignore')
+            async with session.get(url) as r:
+                _body = await r.text(encoding=None, errors='ignore')
                 _soup = await asyncio.to_thread(get_soup, _body=_body)
                 book_urls = await asyncio.to_thread(parse_soup_phase_one, _soup=_soup)
 
     except asyncio.exceptions.TimeoutError:
-        print(f'{get_dt()} ' + color(f'[TIMEOUT] Initial scraper timeout. Retrying in {timeout_retry} seconds.', c='Y'))
+        print(f'{get_dt()} ' + color(f'[TimeoutError] Initial scraper timeout. Retrying in {timeout_retry} seconds.', c='Y'))
         await asyncio.sleep(timeout_retry)
         await scrape_pages(url)
 
     except aiohttp.ClientConnectorError:
-        print(f'{get_dt()} ' + color(f'[CONNECTION ERROR] Initial scraper connection error. Retrying in {connection_error_retry} seconds.', c='Y'))
+        print(f'{get_dt()} ' + color(f'[ClientConnectorError] Initial scraper connection error. Retrying in {connection_error_retry} seconds.', c='Y'))
         await asyncio.sleep(timeout_retry)
         await scrape_pages(url)
 
     except aiohttp.ServerDisconnectedError:
-        print(f'{get_dt()} ' + color(f'[SERVER DISCONNECTED ERROR] Retrying in {server_disconnected_error_retry} seconds.', c='Y'))
+        print(f'{get_dt()} ' + color(f'[ServerDisconnectedError] Retrying in {server_disconnected_error_retry} seconds.', c='Y'))
         await asyncio.sleep(server_disconnected_error_retry)
+        await scrape_pages(url)
+
+    except aiohttp.ClientPayloadError:
+        print(f'{get_dt()} ' + color(f'[ClientPayloadError] Retrying in {client_payload_error_retry} seconds.', c='Y'))
+        await asyncio.sleep(client_payload_error_retry)
         await scrape_pages(url)
 
     return book_urls
@@ -432,10 +453,10 @@ async def enumerate_links(_book_urls: list, _verbose: bool) -> list:
     try:
         _headers = user_agent()
         async with aiohttp.ClientSession(headers=_headers, **client_args) as session:
-            async with session.get(_book_urls[0]) as resp:
-                # print(resp.status)
-                if resp.status == 200:
-                    _body = await resp.text(encoding=None, errors='ignore')
+            async with session.get(_book_urls[0]) as r:
+                # print(r.status)
+                if r.status == 200:
+                    _body = await r.text(encoding=None, errors='ignore')
                     _soup = await asyncio.to_thread(get_soup, _body=_body)
                     if _soup:
                         data = await asyncio.to_thread(parse_soup_phase_two, _soup=_soup, _book_urls=_book_urls)
@@ -443,31 +464,36 @@ async def enumerate_links(_book_urls: list, _verbose: bool) -> list:
                         if len(data) >= 3:
                             # when all the lights turn green we have everything we need
                             if _verbose is True:
-                                print(f'{get_dt()} ' + color(f'[RESPONSE] {str(resp.status)}. {_book_urls}', c='G'))
+                                print(f'{get_dt()} ' + color(f'[RESPONSE] {str(r.status)}. {_book_urls}', c='G'))
                             return data
                 else:
                     # retry because the response was not 200
                     if _verbose is True:
-                        print(f'{get_dt()} ' + color(f'[RESPONSE] {str(resp.status)}. Retrying: {_book_urls}', c='Y'))
+                        print(f'{get_dt()} ' + color(f'[RESPONSE] {str(r.status)}. Retrying: {_book_urls}', c='Y'))
                     await asyncio.sleep(2)
                     await enumerate_links(_book_urls=_book_urls, _verbose=_verbose)
 
     except asyncio.exceptions.TimeoutError:
         if _verbose is True:
-            print(f'{get_dt()} ' + color(f'[TIMEOUT] Enumeration timeout. Retrying in {timeout_retry} seconds.', c='Y'))
+            print(f'{get_dt()} ' + color(f'[TimeoutError] Enumeration timeout. Retrying in {timeout_retry} seconds.', c='Y'))
         await asyncio.sleep(timeout_retry)
         await enumerate_links(_book_urls=_book_urls, _verbose=_verbose)
 
     except aiohttp.ClientConnectorError:
         if _verbose is True:
-            print(f'{get_dt()} ' + color(f'[CONNECTION ERROR] Enumeration connection error. Retrying in {connection_error_retry} seconds.', c='Y'))
+            print(f'{get_dt()} ' + color(f'[ClientConnectorError] Enumeration connection error. Retrying in {connection_error_retry} seconds.', c='Y'))
         await asyncio.sleep(timeout_retry)
         await enumerate_links(_book_urls=_book_urls, _verbose=_verbose)
 
     except aiohttp.ServerDisconnectedError:
         if _verbose is True:
-            print(f'{get_dt()} ' + color(f'[SERVER DISCONNECTED ERROR] Retrying in {server_disconnected_error_retry} seconds.', c='Y'))
+            print(f'{get_dt()} ' + color(f'[SERVER DISCONNECTED] Retrying in {server_disconnected_error_retry} seconds.', c='Y'))
         await asyncio.sleep(server_disconnected_error_retry)
+        await enumerate_links(_book_urls=_book_urls, _verbose=_verbose)
+
+    except aiohttp.ClientPayloadError:
+        print(f'{get_dt()} ' + color(f'[ClientPayloadError] Retrying in {client_payload_error_retry} seconds.', c='Y'))
+        await asyncio.sleep(client_payload_error_retry)
         await enumerate_links(_book_urls=_book_urls, _verbose=_verbose)
 
     if len(_book_urls) >= 3:
