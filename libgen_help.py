@@ -1,9 +1,12 @@
-
-def display_help():
+def display_banner():
     print('')
     print('')
     print('[  LibGenV2   ]')
     print('')
+
+
+def display_help():
+    display_banner()
     print('-k                   Keyword            Specify a search string.')
     print('-p                   Page               Specify a page to start downloading from (optional). (Default -p 1)')
     print('-P                   Path               Specify save path (optional). (Default -P ./library)')

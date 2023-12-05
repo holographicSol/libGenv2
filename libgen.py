@@ -27,6 +27,7 @@ from dataclasses import dataclass
 import ebook_ext
 import libgen_help
 import httprci
+import get_input
 
 # Platform check (Be compatible with Termux on Android, skip Pyqt5 import)
 player_default = object
@@ -50,7 +51,7 @@ if os.name in ('nt', 'dos'):
 colorama.init()
 
 # Global mirrors
-mirror_search = 'https://libgen.is'
+mirror_search = ''
 mirror_phase_one = 'http://library.lol'
 
 
@@ -148,13 +149,14 @@ def convert_bytes(num: int) -> str:
 
 
 def play():
-    """ notification sound """
+    """ Notification sound """
     if os.name in ('nt', 'dos'):
         player_default.play()
         time.sleep(1)
 
 
 def out_of_disk_space(_chunk_size: int) -> bool:
+    """ Free disk space check """
     total, used, free = shutil.disk_usage("./")
     if free > _chunk_size + 1024:
         return False
@@ -163,6 +165,7 @@ def out_of_disk_space(_chunk_size: int) -> bool:
 
 
 def index_preferred_download_link(_urls: list, _preferred_dl_link: str):
+    """ By default, finds and returns index number of Cloudflare download url """
     _link_index = 2
     if not _preferred_dl_link == 'none_specified':
         i_url = 0
@@ -175,7 +178,7 @@ def index_preferred_download_link(_urls: list, _preferred_dl_link: str):
 
 
 def make_file_name(_title: str, _url: str, _filepath: str) -> str:
-    """ create filenames from book URLs """
+    """ Create safe filename using string from book URL"""
 
     # Use filepath safe characters
     invalid_char = '<>:"/|?*'
@@ -217,7 +220,7 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
     """
     This function is currently designed to run synchronously while also having asynchronous features.
     Make use of faster async read/write and aiohhttp while also not needing to make this function non-blocking -
-    (This function runs one instance at a time to prevent being kicked). """
+    (This function runs one instance at a time to prevent being soft/hard blocked from server(s)). """
 
     # Output: Link index
     print(f'{get_dt()} ' + color('[Link Index] ', c='LC') + color(str(dyn_download_args.link_index), c='W'))
@@ -512,7 +515,7 @@ async def run_downloader(dyn_download_args):
 
     if dl[0] is True:
 
-        # Notification sound after platform check (Be compatible on Termux on Android)
+        # Notification sound after platform check
         if os.name in ('nt', 'dos'):
             if mute_default_player is False:
                 play_thread = Thread(target=play)
@@ -644,114 +647,44 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
 
             i_current_book += 1
 
-        print('')
-        print('')
-        print('[  LibGenesis Downloader   ]')
-        print('')
-
+        libgen_help.display_banner()
 
 # Get STDIN and parse
 stdin = list(sys.argv)
+
 if '-h' in stdin:
     libgen_help.display_help()
-else:
-    print('')
-    print('')
-    print('[  LibGenesis Downloader   ]')
-    print('')
 
-    verbose = False
-    if '-v' in stdin:
-        verbose = True
+elif '-h' not in stdin and len(stdin) >= 2:
+    libgen_help.display_banner()
 
-    if os.name in ('nt', 'dos'):
-        if '-sfx' in stdin:
-            mute_default_player = False
+    verbose = get_input.get_verbose(stdin)
 
-    """ Library Path """
-    lib_path = './library/'
-    if '-P' in stdin:
-        idx = stdin.index('-P') + 1
-        lib_path = stdin[idx]
+    mute_default_player = get_input.get_mute(stdin)
 
-    """ Exact Match """
+    lib_path = get_input.get_lib_path(stdin)
+
     exact_match = False
 
-    """ Page """
-    i_page = 1
-    if '-p' in stdin:
-        idx = stdin.index('-p') + 1
-        i_page = int(stdin[idx])
+    i_page = get_input.get_page(stdin)
 
-    results_per_page = '50'
-    allowed_results_per_page = ['25', '50', '100']
-    if '-rmax' in stdin:
-        idx = stdin.index('-rmax') + 1
-        input_results_per_page = stdin[idx]
-        if input_results_per_page in allowed_results_per_page:
-            results_per_page = input_results_per_page
+    results_per_page = get_input.get_rmax(stdin)
 
-    """ Query """
-    search_q = ''
-    idx = stdin.index('-k')+1
-    i = 0
-    for x in stdin:
-        if i >= int(idx):
-            search_q = search_q + ' ' + x
-        i += 1
-    search_q = search_q[1:]
+    search_q = get_input.get_query(stdin)
 
-    """ Max Pages """
-    max_page = 100
-    if '-max' in stdin:
-        idx = stdin.index('-max') + 1
-        max_page = int(stdin[idx])
+    max_page = get_input.get_max_page(stdin)
 
-    """ Display Download Progress In Bytes """
-    ds_bytes = False
-    if '-bytes' in stdin:
-        ds_bytes = True
+    ds_bytes = get_input.get_display_bytes(stdin)
 
-    column = 'title'
-    if '--title' in stdin:
-        column = 'title'
-    elif '--author' in stdin:
-        column = 'author'
-    
-    # Be polite: please use the --cloudflare argument to be polite to libgen servers (and it may be faster).
-    preferred_dl_link = 'none_specified'
-    if '--cloudflare' in stdin:
-        preferred_dl_link = 'https://cloudflare'
+    column = get_input.get_column(stdin)
 
-    if '--search-mirror' in stdin:
-        idx = stdin.index('--search-mirror') + 1
-        mirror_search = stdin[idx]
+    preferred_dl_link = get_input.get_preferred_dl(stdin)
 
-    if '--phase-one-mirror' in stdin:
-        idx = stdin.index('--phase-one-mirror') + 1
-        mirror_phase_one = stdin[idx]
+    mirror_search = get_input.get_search_mirror(stdin)
 
-    """ Use Download Log """
-    success_downloads = []
-    failed_downloads = []
-    if '--no-mem' not in stdin:
-        # saved downloads
-        if not os.path.exists('./books_saved.txt'):
-            open('./books_saved.txt', 'w').close()
-        with codecs.open('./books_saved.txt', 'r', encoding='utf8') as fo:
-            for line in fo:
-                line = line.strip()
-                if line not in success_downloads:
-                    success_downloads.append(line)
-        # failed downloads
-        if not os.path.exists('./books_failed.txt'):
-            open('./books_failed.txt', 'w').close()
-        with codecs.open('./books_failed.txt', 'r', encoding='utf8') as fo:
-            for line in fo:
-                line = line.strip()
-                if line not in failed_downloads:
-                    failed_downloads.append(line)
-        fo.close()
+    mirror_phase_one = get_input.get_phase_one_mirror(stdin)
+
+    success_downloads, failed_downloads = get_input.get_mem(stdin)
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main(_i_page=i_page, _max_page=max_page, _exact_match=exact_match, _search_q=search_q,
@@ -759,3 +692,6 @@ else:
                                  _failed_downloads=failed_downloads, _ds_bytes=ds_bytes, _verbose=verbose,
                                  _results_per_page=results_per_page,
                                  _column=column, _preferred_dl_link=preferred_dl_link))
+
+else:
+    libgen_help.display_help()
