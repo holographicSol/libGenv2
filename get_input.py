@@ -105,7 +105,7 @@ def get_search_mirror(stdin):
 
 def get_phase_one_mirror(stdin):
     """ Mirror used when obtaining book webpage URLs from initial results """
-    mirror_phase_one = 'http://library.lol'
+    mirror_phase_one = 'https://library.is'
     if '--phase-one-mirror' in stdin:
         idx = stdin.index('--phase-one-mirror') + 1
         mirror_phase_one = stdin[idx]
@@ -140,4 +140,31 @@ def get_mem(stdin):
 
     return success_downloads, failed_downloads
 
+
+def get_master_timeout(stdin):
+    """ Return master sock read/connect timeout  """
+    master_timeout = 86400  # 24h
+    if '--master-timeout' in stdin:
+        idx = stdin.index('--master-timeout') + 1
+        if str(stdin[idx]).isdigit():
+            master_timeout = int(stdin[idx])
+    return master_timeout
+
+
+def get_timeout(stdin):
+    """ Return master sock read/connect timeout  """
+    timeout = 5
+    if '--timeout' in stdin:
+        idx = stdin.index('--timeout') + 1
+        if str(stdin[idx]).isdigit():
+            timeout = int(stdin[idx])
+    return timeout
+
+
+def get_sfx(stdin):
+    """ Play Sonic 'coin collect' sound for successful downloads"""
+    sfx = False
+    if '-sfx' in stdin:
+        sfx = True
+    return sfx
 
