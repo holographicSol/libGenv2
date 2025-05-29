@@ -218,53 +218,58 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                         if dyn_download_args.verbose is True:
                             print(f'{get_dt()} ' + color('[Response] ', c='Y') + f'{httprci.get(r.status, int(3))}')
                         if r.status == 200:
+                            try:
 
-                            # create filename
-                            # print('[headers]' + str(r.headers['Content-Disposition']))
-                            content_disposition = r.headers['Content-Disposition']
-                            content_disposition = content_disposition.replace('attachment; filename=', '')
-                            content_disposition = content_disposition.replace(' - libgen.li', '')
-                            dyn_download_args.filename = make_file_name(content_disposition, dyn_download_args.filepath)
+                                # create filename
+                                # print('[headers]' + str(r.headers['Content-Disposition']))
+                                content_disposition = r.headers['Content-Disposition']
+                                content_disposition = content_disposition.replace('attachment; filename=', '')
+                                content_disposition = content_disposition.replace(' - libgen.li', '')
+                                dyn_download_args.filename = make_file_name(content_disposition, dyn_download_args.filepath)
 
-                            # concatenate filename and filepath
-                            dyn_download_args.filepath = dyn_download_args.filepath + '/' + dyn_download_args.filename
+                                # concatenate filename and filepath
+                                dyn_download_args.filepath = dyn_download_args.filepath + '/' + dyn_download_args.filename
 
-                            print(f'{get_dt()} ' + color('[Filepath] ', c='LC') + f'{dyn_download_args.filepath}')
+                                print(f'{get_dt()} ' + color('[Filepath] ', c='LC') + f'{dyn_download_args.filepath}')
 
-                            # keep track of how many bytes have been downloaded
-                            _sz = int(0)
+                                # keep track of how many bytes have been downloaded
+                                _sz = int(0)
 
-                            # open file to write the bytes into
-                            async with aiofiles.open(dyn_download_args.filepath+'.tmp', mode='wb') as handle:
+                                # open file to write the bytes into
+                                async with aiofiles.open(dyn_download_args.filepath+'.tmp', mode='wb') as handle:
 
-                                # iterate over chunks of bytes in the response
-                                async for chunk in r.content.iter_chunked(_chunk_size):
+                                    # iterate over chunks of bytes in the response
+                                    async for chunk in r.content.iter_chunked(_chunk_size):
 
-                                    # storage check:
-                                    if await asyncio.to_thread(out_of_disk_space, _chunk_size=dyn_download_args.chunk_size) is False:
+                                        # storage check:
+                                        if await asyncio.to_thread(out_of_disk_space, _chunk_size=dyn_download_args.chunk_size) is False:
 
-                                        # write chunk to the temporary file
-                                        await handle.write(chunk)
+                                            # write chunk to the temporary file
+                                            await handle.write(chunk)
 
-                                        # output: display download progress
-                                        _sz += int(len(chunk))
-                                        print(' ' * dyn_download_args.clear_n_chars, end='\r', flush=True)
-                                        if dyn_download_args.ds_bytes is False:
-                                            print(f'[DOWNLOADING] {str(convert_bytes(_sz))}', end='\r', flush=True)
+                                            # output: display download progress
+                                            _sz += int(len(chunk))
+                                            print(' ' * dyn_download_args.clear_n_chars, end='\r', flush=True)
+                                            if dyn_download_args.ds_bytes is False:
+                                                print(f'[DOWNLOADING] {str(convert_bytes(_sz))}', end='\r', flush=True)
+                                            else:
+                                                print(f'[DOWNLOADING] {str(_sz)} bytes', end='\r', flush=True)
                                         else:
-                                            print(f'[DOWNLOADING] {str(_sz)} bytes', end='\r', flush=True)
-                                    else:
-                                        # output: out of disk space
-                                        print(' ' * dyn_download_args.clear_n_chars, end='\r', flush=True)
-                                        print(str(color(s='[WARNING] OUT OF DISK SPACE! Download terminated.', c='Y')), end='\r', flush=True)
+                                            # output: out of disk space
+                                            print(' ' * dyn_download_args.clear_n_chars, end='\r', flush=True)
+                                            print(str(color(s='[WARNING] OUT OF DISK SPACE! Download terminated.', c='Y')), end='\r', flush=True)
 
-                                        # delete temporary file if exists
-                                        if os.path.exists(dyn_download_args.filepath + '.tmp'):
-                                            await handle.close()
-                                            await aiofiles.os.remove(dyn_download_args.filepath + '.tmp')
-                                        # exit.
-                                        print('\n\n')
-                                        exit(0)
+                                            # delete temporary file if exists
+                                            if os.path.exists(dyn_download_args.filepath + '.tmp'):
+                                                await handle.close()
+                                                await aiofiles.os.remove(dyn_download_args.filepath + '.tmp')
+                                            # exit.
+                                            print('\n\n')
+                                            exit(0)
+
+                            except KeyError as e:
+                                print(f'{get_dt()} ' + color(f'[KeyError] {e}', c='Y'))
+
                             await handle.close()
 
             except asyncio.exceptions.TimeoutError:
