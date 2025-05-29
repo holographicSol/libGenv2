@@ -214,8 +214,8 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                 if r.status == 200:
 
                     try:
-                        print(f'{get_dt()} ' + color('[Content-Disposition] ', c='LC') + f'{r.headers["Content-Disposition"]}')
-
+                        # Get filename with filename suffix from headers
+                        # print(f'{get_dt()} ' + color('[Content-Disposition] ', c='LC') + f'{r.headers["Content-Disposition"]}')
                         content_disposition = r.headers['Content-Disposition']
                         content_disposition = content_disposition.replace('attachment; filename=', '')
                         content_disposition = content_disposition.replace(' - libgen.li', '')
@@ -223,7 +223,6 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
 
                         # concatenate filename and filepath
                         dyn_download_args.filepath = dyn_download_args.filepath + '/' + dyn_download_args.filename
-
                         print(f'{get_dt()} ' + color('[Filepath] ', c='LC') + f'{dyn_download_args.filepath}')
 
                         # Check: Filename exists in filesystem save location
@@ -608,7 +607,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
                 filepath = lib_path + '/' + _search_q + '/'
 
                 # The commented value here does not contain a file suffix. Filename overwritten at actual download
-                print('enumerated_result[1]' + str(enumerated_result[1]))
+                # print('enumerated_result[1]' + str(enumerated_result[1]))
                 filename = enumerated_result[1]
 
                 # create a dataclass for the downloader then run the downloader handler
