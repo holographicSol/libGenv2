@@ -220,6 +220,8 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                         if r.status == 200:
 
                             try:
+                                print(f'{get_dt()} ' + color('[Content-Disposition] ', c='LC') + f'{r.headers["Content-Disposition"]}')
+
                                 content_disposition = r.headers['Content-Disposition']
                                 content_disposition = content_disposition.replace('attachment; filename=', '')
                                 content_disposition = content_disposition.replace(' - libgen.li', '')
@@ -264,8 +266,6 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                                             # exit.
                                             print('\n\n')
                                             exit(0)
-
-                                await handle.close()
 
                             except KeyError as e:
                                 print(f'{get_dt()} ' + color(f'[KeyError] {e}', c='Y'))
