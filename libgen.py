@@ -604,8 +604,8 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
 
                 filepath = lib_path + '/' + _search_q + '/'
 
-                # Create filename using filepath and url[_link_index] extension
-                print('enumerated_result[1]' + str(enumerated_result[1]))
+                # The commented value here does not contain a file suffix. Filename set when connecting to download
+                # print('enumerated_result[1]' + str(enumerated_result[1]))
                 filename = ''
 
                 # create a dataclass for the downloader then run the downloader handler
