@@ -604,9 +604,9 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
 
                 filepath = lib_path + '/' + _search_q + '/'
 
-                # The commented value here does not contain a file suffix. Filename set when connecting to download
-                # print('enumerated_result[1]' + str(enumerated_result[1]))
-                filename = ''
+                # The commented value here does not contain a file suffix. Filename overwritten at actual download
+                print('enumerated_result[1]' + str(enumerated_result[1]))
+                filename = str(enumerated_result[1])
 
                 # create a dataclass for the downloader then run the downloader handler
                 dyn_download_args = DownloadArgs(verbose=_verbose,
