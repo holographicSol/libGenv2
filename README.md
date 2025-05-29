@@ -20,6 +20,8 @@ Developed and written by Benjamin Jack Cullen.
 
 Key Errors may be a result of libgen mirror max user reached, in this case try using cloudflare argument (recommended anyway).
 
+Example Useage: libgen -v --cloudflare -P D:\Books\ --title -k natural sciences
+
 Updated!
 
 Windows Executable:
