@@ -21,6 +21,7 @@ import asyncio
 import aiohttp
 import aiofiles
 import aiofiles.os
+from aiohttp.helpers import content_disposition_header
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 from dataclasses import dataclass
@@ -29,7 +30,9 @@ import libgen_help
 import httprci
 import get_input
 
+
 # Platform check (Be compatible with Termux on Android, skip Pyqt5 import)
+sfx = False
 player_default = object
 if os.name in ('nt', 'dos'):
     try:
@@ -52,7 +55,7 @@ colorama.init()
 
 # Global mirrors
 mirror_search = ''
-mirror_phase_one = 'http://library.lol'
+mirror_phase_one = 'https://library.bz'
 
 
 # return headers with a random user agent
@@ -81,36 +84,12 @@ class DownloadArgs:
 
 _retry_download = int(0)
 
-# set master timeout
-master_timeout = 86400  # 24h
-
 # set scraper timeout/connection-issue retry time intervals
-timeout_retry = 2
-connection_error_retry = 10
-server_disconnected_error_retry = 10
-client_payload_error_retry = 10
-
-# configure options for scraping
-scrape_timeout = aiohttp.ClientTimeout(
-    total=None,  # default value is 5 minutes, set to `None` for unlimited timeout
-    sock_connect=master_timeout,  # How long to wait before an open socket allowed to connect
-    sock_read=master_timeout  # How long to wait with no data being read before timing out
-)
-client_args = dict(
-    trust_env=True,
-    timeout=scrape_timeout
-)
-
-# configure options for downloading files
-download_timeout = aiohttp.ClientTimeout(
-    total=None,  # default value is 5 minutes, set to `None` for unlimited timeout
-    sock_connect=master_timeout,  # How long to wait before an open socket allowed to connect
-    sock_read=master_timeout  # How long to wait with no data being read before timing out
-)
-client_args_download = dict(
-    trust_env=True,
-    timeout=download_timeout
-)
+master_timeout = 86400  # 24h
+timeout_retry = 1
+connection_error_retry = 1
+server_disconnected_error_retry = 1
+client_payload_error_retry = 1
 
 
 def color(s: str, c: str) -> str:
@@ -150,9 +129,11 @@ def convert_bytes(num: int) -> str:
 
 def play():
     """ Notification sound """
-    if os.name in ('nt', 'dos'):
-        player_default.play()
-        time.sleep(1)
+    global sfx
+    if sfx is True:
+        if os.name in ('nt', 'dos'):
+            player_default.play()
+            time.sleep(1)
 
 
 def out_of_disk_space(_chunk_size: int) -> bool:
@@ -177,11 +158,11 @@ def index_preferred_download_link(_urls: list, _preferred_dl_link: str):
     return _link_index
 
 
-def make_file_name(_title: str, _url: str, _filepath: str) -> str:
+def make_file_name(_title: str, _filepath: str) -> str:
     """ Create safe filename using string from book URL"""
 
     # Use filepath safe characters
-    invalid_char = '<>:"/|?*'
+    invalid_char = '<>:"/|?*,'
     new_filename = ''
     for char in _title:
         if char not in invalid_char:
@@ -189,11 +170,7 @@ def make_file_name(_title: str, _url: str, _filepath: str) -> str:
 
     # Use only single spaces
     new_filename = new_filename.strip()
-    new_filename = re.sub('\s+', ' ', new_filename)
-
-    # Find URL suffix
-    url_idx = _url.rfind('.')
-    ext = _url[url_idx:]
+    new_filename = re.sub(r'\s+', ' ', new_filename)
 
     # Modify filename if filename is a Windows reserved filename
     win_res_nm = ['CON', 'PRN', 'AUX', 'NUL',
@@ -203,14 +180,11 @@ def make_file_name(_title: str, _url: str, _filepath: str) -> str:
         rand_string = ''.join(random.choice(string.digits) for digi in range(32))
         new_filename += '_'+rand_string
 
-    # Make filename length < max filename length limit
-    _len_filename = len(_filepath) + len(new_filename) + len(ext)
-    if _len_filename >= 255:
-        new_filename = new_filename[:250-len(_filepath)-len(ext)]
-        new_filename = new_filename + '...'
-
-    # Append filename suffix to filename
-    new_filename += ext
+    # # Make filename length < max filename length limit
+    # _len_filename = len(_filepath) + len(new_filename) + len(ext)
+    # if _len_filename >= 255:
+    #     new_filename = new_filename[:250-len(_filepath)-len(ext)]
+    #     new_filename = new_filename + '...'
 
     return new_filename
 
@@ -240,9 +214,22 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
             try:
                 async with aiohttp.ClientSession(headers=user_agent(), **client_args_download) as session:
                     async with session.get(dyn_download_args.url[dyn_download_args.link_index]) as r:
+
                         if dyn_download_args.verbose is True:
                             print(f'{get_dt()} ' + color('[Response] ', c='Y') + f'{httprci.get(r.status, int(3))}')
                         if r.status == 200:
+
+                            # create filename
+                            # print('[headers]' + str(r.headers['Content-Disposition']))
+                            content_disposition = r.headers['Content-Disposition']
+                            content_disposition = content_disposition.replace('attachment; filename=', '')
+                            content_disposition = content_disposition.replace(' - libgen.li', '')
+                            dyn_download_args.filename = make_file_name(content_disposition, dyn_download_args.filepath)
+
+                            # concatenate filename and filepath
+                            dyn_download_args.filepath = dyn_download_args.filepath + '/' + dyn_download_args.filename
+
+                            print(f'{get_dt()} ' + color('[Filepath] ', c='LC') + f'{dyn_download_args.filepath}')
 
                             # keep track of how many bytes have been downloaded
                             _sz = int(0)
@@ -312,25 +299,19 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
 
                 if os.path.getsize(dyn_download_args.filepath+'.tmp') >= dyn_download_args.min_file_size:
 
-                    if dyn_download_args.verbose is True:
-                        print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Attempting to replace temporary file with actual file.', c='LC'))
-
                     # create final download file from temporary file
                     await aiofiles.os.replace(dyn_download_args.filepath+'.tmp', dyn_download_args.filepath)
 
                     # display download success (doesn't guarantee a usable file, checks are performed before this point)
                     if os.path.exists(dyn_download_args.filepath):
 
-                        if dyn_download_args.verbose is True:
-                            print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Replaced temporary file successfully.', c='LC'))
+                        # if dyn_download_args.verbose is True:
                         print(f'{get_dt()} ' + color('[Downloaded Successfully]', c='G'))
+                        play()
 
                         # check: clean up the temporary file if it exists.
                         if os.path.exists(dyn_download_args.filepath + '.tmp'):
                             await aiofiles.os.remove(dyn_download_args.filepath + '.tmp')
-                        if dyn_download_args.verbose is True:
-                            if not os.path.exists(dyn_download_args.filepath + '.tmp'):
-                                print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Removed temporary file.', c='LC'))
 
                         # add book to saved list. multi-drive/system memory (continue where you left off)
                         if dyn_download_args.log is True:
@@ -339,23 +320,7 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                                 async with aiofiles.open('./books_saved.txt', mode='a+', encoding='utf8') as handle:
                                     await handle.write(dyn_download_args.filename + '\n')
                                 await handle.close()
-
-                            # read file and check if new entry exists
-                            if dyn_download_args.verbose is True:
-                                async with aiofiles.open('./books_saved.txt', mode='r', encoding='utf8') as handle:
-                                    text = await handle.read()
-                                await handle.close()
-                                lines = text.split('\n')
-                                if dyn_download_args.filename in lines:
-                                    print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Successfully added book to books_saved.txt', c='LC'))
-                                else:
-                                    print(f'{get_dt()} ' + color('[File] ', c='R') + color(f'Failed to add book to books_saved.txt', c='LC'))
-
                         return True
-
-                    else:
-                        if dyn_download_args.verbose is True:
-                            print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Issue replacing temporary file.', c='LC'))
 
                 else:
                     print(f'{get_dt()} ' + color(f'[Download Failed] ', c='R') + str(''))
@@ -363,13 +328,6 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                     # check: clean up the temporary file if it exists.
                     if os.path.exists(dyn_download_args.filename+'.tmp'):
                         os.remove(dyn_download_args.filename+'.tmp')
-
-                    # check: path still exists
-                    if dyn_download_args.verbose is True:
-                        if not os.path.exists(dyn_download_args.filename+'.tmp'):
-                            print(f'{get_dt()} ' + color('[File] ', c='Y') + color(f'Successfully removed temporary file.', c='LC'))
-                        else:
-                            print(f'{get_dt()} ' + color('[File] ', c='R') + color(f'Failed to remove temporary file.', c='LC'))
 
                     return False
         else:
@@ -389,30 +347,43 @@ def parse_soup_phase_one(_soup: bs4.BeautifulSoup) -> list:
     check_0 = [str(mirror_phase_one) + '/main/']
     for link in _soup.find_all('a'):
         href = link.get('href')
-        if str(href).startswith(tuple(check_0)):
+        # print('[href]' + str(href))
+        if 'libgen.li/ads.php?md5=' in href:
+            # print('[pass]' + str(href))
             book_urls.append([href])
     return book_urls
 
 
 def parse_soup_phase_two(_soup: bs4.BeautifulSoup, _book_urls: list) -> list:
     """ parse soup from phase two (parse book URLs (found in phase one) for a specific tag) """
+    pass_title = False
+
     for row in _soup.find_all('td'):
         title = list(str(row.getText('h1')).split('\n'))
-        if len(title) >= 8:
-            title = title[7]
-            title = title[2:]
-            title = title[:-2]
-            # filter download title
-            if title not in _book_urls:
-                _book_urls.append(title)
-                break
+        # print('[title] ' + str(title[0]))
+        if title[0].startswith('Title: '):
+            title = title[0].replace('Title: ', '')
+            # print('[title] ' + str(title))
+            title = title[:-3]
+            # print('[title] ' + str(title))
+            if len(title) >= 1:
+                if title not in _book_urls:
+                    # print('[title] ' + str(title))
+                    _book_urls.append(title)
+                    pass_title=True
+                    break
 
-    for link in _soup.find_all('a'):
-        href = link.get('href')
-        # filter download links
-        if str(href).endswith(tuple(ebook_ext.ebook_extensions_1)):
-            if str(href) not in _book_urls:
-                _book_urls.append(str(href))
+    if pass_title is True:
+        for link in _soup.find_all('a'):
+            href = link.get('href')
+            # print('[href] ' + str(href))
+            # filter download links
+            # if str(href).endswith(tuple(ebook_ext.ebook_extensions_1)):
+            if href.startswith('get.php?md5='):
+                if str(href) not in _book_urls:
+                    # print('[pass] ' + str(href))
+                    _book_urls.append('https://libgen.li/' + str(href))
+                    break
     return _book_urls
 
 
@@ -457,11 +428,14 @@ async def enumerate_links(_book_urls: list, _verbose: bool) -> list:
         _headers = user_agent()
         async with aiohttp.ClientSession(headers=_headers, **client_args) as session:
             async with session.get(_book_urls[0]) as r:
-                # print(r.status)
+                print(f'{get_dt()} ' + color(f'[BOOK_URLs] {_book_urls[0]}', c='LC'))
                 if r.status == 200:
                     _body = await r.text(encoding=None, errors='ignore')
+                    # print(_body)
                     _soup = await asyncio.to_thread(get_soup, _body=_body)
+                    # print(_soup)
                     if _soup:
+                        # print('[got soup]')
                         data = await asyncio.to_thread(parse_soup_phase_two, _soup=_soup, _book_urls=_book_urls)
                         # base urls, title, download links
                         if len(data) >= 3:
@@ -473,7 +447,7 @@ async def enumerate_links(_book_urls: list, _verbose: bool) -> list:
                     # retry because the response was not 200
                     if _verbose is True:
                         print(f'{get_dt()} ' + color(f'[RESPONSE] {str(r.status)}. Retrying: {_book_urls}', c='Y'))
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(1)
                     await enumerate_links(_book_urls=_book_urls, _verbose=_verbose)
 
     except asyncio.exceptions.TimeoutError:
@@ -524,7 +498,7 @@ async def run_downloader(dyn_download_args):
 
 async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_path='./library/',
                _success_downloads=None, _failed_downloads=None, _ds_bytes=False, _verbose=False,
-               _results_per_page='50', _column='title', _preferred_dl_link=''):
+               _results_per_page='25', _column='title', _preferred_dl_link=''):
 
     global _retry_download
 
@@ -533,9 +507,12 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
         _success_downloads = []
     for i_current_page in range(i_page, _max_page):
 
-        # create URL to scrape using query and exact match bool
-        url = str(str(mirror_search) + '/search.php?req=' + str(_search_q).replace(' ', '+'))
-        url = url + f'&open=0&res={str(_results_per_page)}&view=simple&phrase=1&column={_column}&page='
+        # remove space in search string
+        url = str(str(mirror_search) + '/search.php?&res=50&req=' + str(_search_q).replace(' ', '+'))
+        # append remaining variable url strings
+        # https://libgen.is/search.php?&res=50&req=computer+systems&open=0&res=50&phrase=1&column=deftitle&page=1
+        # https://libgen.is/search.php?&res=50&req=computer+systems&open=0&res=50&phrase=1&column=deftitle&page=1
+        url = url + f'&open=0&res={str(_results_per_page)}&phrase=1&column=def{_column}&page='
         url = url+str(i_current_page)
 
         print(f'{get_dt()} ' + color('[Search] ', c='LC') + color(search_q, c='W'))
@@ -566,7 +543,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
             print('\n\n')
             break
 
-        # Phase Two: Setup async scaper to get book download links for each book on the current page
+        # Phase Two: Setup async scrape to get book download links for each book on the current page
         print(f'{get_dt()} ' + color('[Phase Two] ', c='LC') + f'Enumerating Links...')
         t0 = time.perf_counter()
         tasks = []
@@ -622,11 +599,8 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
                 filepath = lib_path + '/' + _search_q + '/'
 
                 # Create filename using filepath and url[_link_index] extension
-                filename = make_file_name(_title=enumerated_result[1],
-                                          _url=enumerated_result[_link_index],
-                                          _filepath=filepath)
-
-                filepath = filepath + filename
+                print('enumerated_result[1]' + str(enumerated_result[1]))
+                filename = ''
 
                 # create a dataclass for the downloader then run the downloader handler
                 dyn_download_args = DownloadArgs(verbose=_verbose,
@@ -686,8 +660,40 @@ elif '-h' not in stdin and len(stdin) >= 2:
 
     success_downloads, failed_downloads = get_input.get_mem(stdin)
 
+    master_timeout = get_input.get_master_timeout(stdin)
+
+    timeout = get_input.get_timeout(stdin)
+    timeout_retry = timeout
+    scrape_timeout = timeout
+    download_timeout = timeout
+
+    # configure options for scraping
+    _scrape_timeout = aiohttp.ClientTimeout(
+        total=None,  # default value is 5 minutes, set to `None` for unlimited timeout
+        sock_connect=master_timeout,  # How long to wait before an open socket allowed to connect
+        sock_read=master_timeout  # How long to wait with no data being read before timing out
+    )
+    client_args = dict(
+        trust_env=True,
+        timeout=_scrape_timeout
+    )
+
+    # configure options for downloading files
+    _download_timeout = aiohttp.ClientTimeout(
+        total=None,  # default value is 5 minutes, set to `None` for unlimited timeout
+        sock_connect=master_timeout,  # How long to wait before an open socket allowed to connect
+        sock_read=master_timeout  # How long to wait with no data being read before timing out
+    )
+    client_args_download = dict(
+        trust_env=True,
+        timeout=_download_timeout
+    )
+
+    sfx = get_input.get_sfx(stdin)
+
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(main(_i_page=i_page, _max_page=max_page, _exact_match=exact_match, _search_q=search_q,
+    loop.run_until_complete(
+        main(_i_page=i_page, _max_page=max_page, _exact_match=exact_match, _search_q=search_q,
                                  _lib_path=lib_path, _success_downloads=success_downloads,
                                  _failed_downloads=failed_downloads, _ds_bytes=ds_bytes, _verbose=verbose,
                                  _results_per_page=results_per_page,
