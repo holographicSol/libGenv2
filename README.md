@@ -18,6 +18,9 @@
 
 Developed and written by Benjamin Jack Cullen.
 
+Key Errors may be a result of libgen mirror max user reached, in this case try using cloudflare argument (recommended anyway).
+
 Updated!
 
+Windows Executable:
 Download: https://drive.google.com/drive/folders/1PdejPEIesD3Y6zVapXLfE-h76X310Pkl?usp=sharing
