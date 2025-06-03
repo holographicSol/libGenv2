@@ -284,7 +284,7 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                         print(f'{get_dt()} ' + color(f'[UnboundLocalError] {e}', c='Y'))
 
                 elif r.status == 500:
-                    print(f'{get_dt()} ' + color(f'[Internal Server Error] . Retrying in {internal_server_error} seconds.', c='Y'))
+                    print(f'{get_dt()} ' + color(f'[Internal Server Error] Retrying in {internal_server_error} seconds.', c='Y'))
                     await asyncio.sleep(internal_server_error)
                     await download_file(dyn_download_args)
 
