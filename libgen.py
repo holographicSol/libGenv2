@@ -159,7 +159,7 @@ def index_preferred_download_link(_urls: list, _preferred_dl_link: str):
     return _link_index
 
 
-def make_file_name(_title: str, _filepath: str) -> str:
+def make_file_name(_title: str) -> str:
     """ Create safe filename using string from book URL"""
 
     # Use filepath safe characters
@@ -205,7 +205,7 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
 
     _chunk_size = dyn_download_args.chunk_size
     print(f'{get_dt()} ' + color('[URL] ', c='LC') + color(str(dyn_download_args.url[dyn_download_args.link_index]), c='W'))
-
+    new_filename = ""
     try:
         async with aiohttp.ClientSession(headers=user_agent(), **client_args_download) as session:
             async with session.get(dyn_download_args.url[dyn_download_args.link_index]) as r:
@@ -220,11 +220,12 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                         content_disposition = r.headers['Content-Disposition']
                         content_disposition = content_disposition.replace('attachment; filename=', '')
                         content_disposition = content_disposition.replace(' - libgen.li', '')
-                        dyn_download_args.filename = make_file_name(content_disposition, dyn_download_args.filepath)
+                        dyn_download_args.filename = make_file_name(content_disposition)
 
                         # concatenate filename and filepath
-                        dyn_download_args.filepath = dyn_download_args.filepath + '/' + dyn_download_args.filename
-                        print(f'{get_dt()} ' + color('[Filepath] ', c='LC') + f'{dyn_download_args.filepath}')
+                        new_filename = dyn_download_args.filepath + '/' + dyn_download_args.filename
+                        # dyn_download_args.filepath = dyn_download_args.filepath + '/' + dyn_download_args.filename
+                        print(f'{get_dt()} ' + color('[Filepath] ', c='LC') + f'{new_filename}')
 
                         # Check: Filename exists in filesystem save location
                         if not os.path.exists(dyn_download_args.filename):
@@ -236,7 +237,7 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                                 _sz = int(0)
 
                                 # open file to write the bytes into
-                                async with aiofiles.open(dyn_download_args.filepath+'.tmp', mode='wb') as handle:
+                                async with aiofiles.open(new_filename+'.tmp', mode='wb') as handle:
 
                                     # iterate over chunks of bytes in the response
                                     async for chunk in r.content.iter_chunked(_chunk_size):
@@ -260,9 +261,9 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                                             print(str(color(s='[WARNING] OUT OF DISK SPACE! Download terminated.', c='Y')), end='\r', flush=True)
 
                                             # delete temporary file if exists
-                                            if os.path.exists(dyn_download_args.filepath + '.tmp'):
+                                            if os.path.exists(new_filename + '.tmp'):
                                                 await handle.close()
-                                                await aiofiles.os.remove(dyn_download_args.filepath + '.tmp')
+                                                await aiofiles.os.remove(new_filename + '.tmp')
                                             # exit.
                                             print('\n\n')
                                             exit(0)
@@ -301,7 +302,7 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
         await asyncio.sleep(client_payload_error_retry)
         await download_file(dyn_download_args)
 
-    if os.path.exists(dyn_download_args.filepath+'.tmp'):
+    if os.path.exists(new_filename+'.tmp'):
 
         """
         CHECK: temporary file worth keeping? (<1024 bytes would be less than 1024 characters, reduce this if
@@ -311,21 +312,21 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                ultimately the file we wanted was not present and will then be detected and deleted.
           """
 
-        if os.path.getsize(dyn_download_args.filepath+'.tmp') >= dyn_download_args.min_file_size:
+        if os.path.getsize(new_filename+'.tmp') >= dyn_download_args.min_file_size:
 
             # create final download file from temporary file
-            await aiofiles.os.replace(dyn_download_args.filepath+'.tmp', dyn_download_args.filepath)
+            await aiofiles.os.replace(new_filename+'.tmp', new_filename)
 
             # display download success (doesn't guarantee a usable file, checks are performed before this point)
-            if os.path.exists(dyn_download_args.filepath):
+            if os.path.exists(new_filename):
 
                 # if dyn_download_args.verbose is True:
                 print(f'{get_dt()} ' + color('[Downloaded Successfully]', c='G'))
                 play()
 
                 # check: clean up the temporary file if it exists.
-                if os.path.exists(dyn_download_args.filepath + '.tmp'):
-                    await aiofiles.os.remove(dyn_download_args.filepath + '.tmp')
+                if os.path.exists(new_filename + '.tmp'):
+                    await aiofiles.os.remove(new_filename + '.tmp')
 
                 # add book to saved list. multi-drive/system memory (continue where you left off)
                 if dyn_download_args.log is True:
@@ -343,7 +344,7 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
             if os.path.exists(dyn_download_args.filename+'.tmp'):
                 os.remove(dyn_download_args.filename+'.tmp')
 
-            return False
+    return False
 
 
 def get_soup(_body: str) -> bs4.BeautifulSoup:
