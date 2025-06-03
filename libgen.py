@@ -87,6 +87,7 @@ _retry_download = int(0)
 # set scraper timeout/connection-issue retry time intervals
 master_timeout = 86400  # 24h to allow for files to continue downloading after interruption (large files/slow networks)
 key_error_retry = 600   # wait 10 minutes in case libgen has temporarily blocked downloads
+internal_server_error = 600 # wait 10 minutes in case libgen has temporarily blocked downloads
 timeout_retry = 1
 connection_error_retry = 1
 server_disconnected_error_retry = 1
@@ -281,6 +282,11 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
 
                     except UnboundLocalError as e:
                         print(f'{get_dt()} ' + color(f'[UnboundLocalError] {e}', c='Y'))
+
+                elif r.status == 500:
+                    print(f'{get_dt()} ' + color(f'[Internal Server Error] . Retrying in {internal_server_error} seconds.', c='Y'))
+                    await asyncio.sleep(internal_server_error)
+                    await download_file(dyn_download_args)
 
     except asyncio.exceptions.TimeoutError:
         print(f'{get_dt()} ' + color(f'[TimeoutError] Enumeration timeout. Retrying in {timeout_retry} seconds.', c='Y'))
@@ -607,7 +613,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
                 _link_index = index_preferred_download_link(_urls=enumerated_result,
                                                             _preferred_dl_link=_preferred_dl_link)
 
-                filepath = lib_path + '/' + _search_q + '/'
+                filepath = lib_path + '/' + _search_q
 
                 # The commented value here does not contain a file suffix. Filename overwritten at actual download
                 # print('enumerated_result[1]' + str(enumerated_result[1]))
