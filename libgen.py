@@ -86,8 +86,9 @@ _retry_download = int(0)
 
 # set scraper timeout/connection-issue retry time intervals
 master_timeout = 86400  # 24h to allow for files to continue downloading after interruption (large files/slow networks)
-key_error_retry = 600   # wait 10 minutes in case libgen has temporarily blocked downloads
-internal_server_error = 600 # wait 10 minutes in case libgen has temporarily blocked downloads
+key_error_retry = 600   # be polite. wait in case libgen has temporarily blocked downloads
+internal_server_error = 3600 # be polite. wait in case libgen has temporarily blocked downloads
+bad_gateway_error = 1800     # be polite. wait in case libgen has temporarily blocked downloads
 timeout_retry = 1
 connection_error_retry = 1
 server_disconnected_error_retry = 1
@@ -114,6 +115,7 @@ def color(s: str, c: str) -> str:
         return colorama.Style.BRIGHT + colorama.Fore.YELLOW + str(s) + colorama.Style.RESET_ALL
     elif c == 'R':
         return colorama.Style.BRIGHT + colorama.Fore.RED + str(s) + colorama.Style.RESET_ALL
+    return ''
 
 
 def get_dt() -> str:
@@ -286,6 +288,11 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                 elif r.status == 500:
                     print(f'{get_dt()} ' + color(f'[Internal Server Error] Retrying in {internal_server_error} seconds.', c='Y'))
                     await asyncio.sleep(internal_server_error)
+                    await download_file(dyn_download_args)
+
+                elif r.status == 502:
+                    print(f'{get_dt()} ' + color(f'[Bad Gateway] Retrying in {bad_gateway_error} seconds.', c='Y'))
+                    await asyncio.sleep(bad_gateway_error)
                     await download_file(dyn_download_args)
 
     except asyncio.exceptions.TimeoutError:
