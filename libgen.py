@@ -85,7 +85,8 @@ class DownloadArgs:
 _retry_download = int(0)
 
 # set scraper timeout/connection-issue retry time intervals
-master_timeout = 86400  # 24h
+master_timeout = 86400  # 24h to allow for files to continue downloading after interruption (large files/slow networks)
+key_error_retry = 600   # wait 10 minutes in case libgen has temporarily blocked downloads
 timeout_retry = 1
 connection_error_retry = 1
 server_disconnected_error_retry = 1
@@ -267,14 +268,15 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                                             exit(0)
 
                             else:
-                                print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File exists in records.',
-                                                                                           c='W'))
+                                print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File exists in records.', c='W'))
                         else:
                             print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color(
                                 'File already exists in filesystem.', c='W'))
 
                     except KeyError as e:
-                        print(f'{get_dt()} ' + color(f'[KeyError] {e}', c='Y'))
+                        print(f'{get_dt()} ' + color(f'[KeyError] {e}. Retrying in {key_error_retry} seconds.', c='Y'))
+                        await asyncio.sleep(key_error_retry)
+                        await download_file(dyn_download_args)
 
                     except UnboundLocalError as e:
                         print(f'{get_dt()} ' + color(f'[UnboundLocalError] {e}', c='Y'))
@@ -589,7 +591,7 @@ async def main(_i_page=1, _max_page=88, _exact_match=False, _search_q='', _lib_p
             if len(enumerated_result) >= 3:
                 print('_' * 28)
                 print('')
-                print(f'{get_dt()} {color("[Progress] ", c="LC")} {color(str(f"{i_current_book+1}/{len(enumerated_results)} ({i_current_page}/{_max_page})"), c="W")}')
+                print(f'{get_dt()} {color("[Progress] ", c="LC")}{color(str(f"{i_current_book+1}/{len(enumerated_results)} ({i_current_page}/{_max_page})"), c="W")}')
                 print(f'{get_dt()} ' + color('[Category] ', c='LC') + color(str(_search_q), c='W'))
                 if _verbose is True:
                     print(f'{get_dt()} ' + color('[Handling Enumerated Result] ', c='Y') + color(str(enumerated_result), c='LC'))
