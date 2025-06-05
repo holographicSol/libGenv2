@@ -22,7 +22,8 @@ Key Errors may be a result of libgen mirror max user reached, in this case try u
 
 Example Useage: libgen -v --cloudflare -P D:\Books\ --title -k natural sciences
 
-Updated!
+Updated: 19/5/2025
+Requires Update: 04/06/2025
 
 Windows Executable:
 Download: https://drive.google.com/drive/folders/1PdejPEIesD3Y6zVapXLfE-h76X310Pkl?usp=sharing
