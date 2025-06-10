@@ -274,26 +274,16 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                             else:
                                 print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File exists in records.', c='W'))
                         else:
-                            print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color(
-                                'File already exists in filesystem.', c='W'))
+                            print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File already exists in filesystem.', c='W'))
 
-                    except KeyError as e:
-                        print(f'{get_dt()} ' + color(f'[KeyError] {e}. Retrying in {key_error_retry} seconds.', c='Y'))
-                        await asyncio.sleep(key_error_retry)
-                        await download_file(dyn_download_args)
-
-                    except UnboundLocalError as e:
-                        print(f'{get_dt()} ' + color(f'[UnboundLocalError] {e}', c='Y'))
-
-                elif r.status == 500:
-                    print(f'{get_dt()} ' + color(f'[Internal Server Error] Retrying in {internal_server_error} seconds.', c='Y'))
-                    await asyncio.sleep(internal_server_error)
-                    await download_file(dyn_download_args)
-
-                elif r.status == 502:
-                    print(f'{get_dt()} ' + color(f'[Bad Gateway] Retrying in {bad_gateway_error} seconds.', c='Y'))
-                    await asyncio.sleep(bad_gateway_error)
-                    await download_file(dyn_download_args)
+                    except Exception as e:
+                        r.close()
+                        print(f'{get_dt()} ' + color(f'[Exception] {e}. Exiting. Try again in a while.\n', c='Y'))
+                        exit(0)
+                else:
+                    r.close()
+                    print(f'{get_dt()} ' + color(f'[RESPONSE] {str(r.status)}. Exiting. Try again in a while', c='Y'))
+                    exit(0)
 
     except asyncio.exceptions.TimeoutError:
         print(f'{get_dt()} ' + color(f'[TimeoutError] Enumeration timeout. Retrying in {timeout_retry} seconds.', c='Y'))
