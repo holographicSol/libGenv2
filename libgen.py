@@ -272,8 +272,10 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                                             exit(0)
 
                             else:
+                                r.close()
                                 print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File exists in records.', c='W'))
                         else:
+                            r.close()
                             print(f'{get_dt()} ' + color('[Skipping] ', c='G') + color('File already exists in filesystem.', c='W'))
 
                     except Exception as e:
@@ -282,7 +284,7 @@ async def download_file(dyn_download_args: dataclasses.dataclass) -> bool:
                         exit(0)
                 else:
                     r.close()
-                    print(f'{get_dt()} ' + color(f'[RESPONSE] {str(r.status)}. Exiting. Try again in a while', c='Y'))
+                    print(f'{get_dt()} ' + color(f'[Response] {str(r.status)}. Exiting. Server may be busy, try again in a while', c='Y'))
                     exit(0)
 
     except asyncio.exceptions.TimeoutError:
